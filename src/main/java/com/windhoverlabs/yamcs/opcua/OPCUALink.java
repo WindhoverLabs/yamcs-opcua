@@ -34,15 +34,8 @@
 package com.windhoverlabs.yamcs.opcua;
 
 import com.google.common.io.BaseEncoding;
-
-
-import static org.opcfoundation.ua.utils.EndpointUtil.selectByMessageSecurityMode;
-import static org.opcfoundation.ua.utils.EndpointUtil.selectByProtocol;
-import static org.opcfoundation.ua.utils.EndpointUtil.sortBySecurityLevel;
-
 import java.io.EOFException;
 import java.io.IOException;
-import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.Charset;
@@ -57,7 +50,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
-
 import org.opcfoundation.ua.application.Client;
 import org.opcfoundation.ua.application.SessionChannel;
 import org.opcfoundation.ua.builtintypes.LocalizedText;
@@ -74,23 +66,19 @@ import org.opcfoundation.ua.core.BrowseDescription;
 import org.opcfoundation.ua.core.BrowseDirection;
 import org.opcfoundation.ua.core.BrowseResponse;
 import org.opcfoundation.ua.core.BrowseResultMask;
-import org.opcfoundation.ua.core.EndpointDescription;
 import org.opcfoundation.ua.core.Identifiers;
-import org.opcfoundation.ua.core.MessageSecurityMode;
 import org.opcfoundation.ua.core.NodeClass;
-import org.opcfoundation.ua.core.ReadRequest;
 import org.opcfoundation.ua.core.ReadResponse;
 import org.opcfoundation.ua.core.ReadValueId;
 import org.opcfoundation.ua.core.TimestampsToReturn;
-import org.opcfoundation.ua.transport.ServiceChannel;
 import org.opcfoundation.ua.transport.security.Cert;
 import org.opcfoundation.ua.transport.security.HttpsSecurityPolicy;
 import org.opcfoundation.ua.transport.security.KeyPair;
 import org.opcfoundation.ua.utils.CertificateUtils;
 import org.yamcs.ConfigurationException;
 import org.yamcs.Spec;
-import org.yamcs.StandardTupleDefinitions;
 import org.yamcs.Spec.OptionType;
+import org.yamcs.StandardTupleDefinitions;
 import org.yamcs.TmPacket;
 import org.yamcs.ValidationException;
 import org.yamcs.YConfiguration;
@@ -101,10 +89,12 @@ import org.yamcs.parameter.SystemParametersService;
 import org.yamcs.parameter.Value;
 import org.yamcs.protobuf.Yamcs;
 import org.yamcs.protobuf.Yamcs.Value.Type;
-import org.yamcs.tctm.AbstractTmDataLink;
+import org.yamcs.tctm.AbstractLink;
 import org.yamcs.tctm.CcsdsPacketInputStream;
 import org.yamcs.tctm.PacketInputStream;
 import org.yamcs.tctm.PacketTooLongException;
+import org.yamcs.tctm.ParameterDataLink;
+import org.yamcs.tctm.ParameterSink;
 import org.yamcs.utils.ValueUtility;
 import org.yamcs.utils.YObjectLoader;
 import org.yamcs.xtce.AbsoluteTimeParameterType;
@@ -118,7 +108,6 @@ import org.yamcs.xtce.NameDescription;
 import org.yamcs.xtce.Parameter;
 import org.yamcs.xtce.ParameterType;
 import org.yamcs.xtce.StringParameterType;
-import org.yamcs.xtce.SystemParameter;
 import org.yamcs.xtce.UnitType;
 import org.yamcs.xtce.XtceDb;
 import org.yamcs.yarch.DataType;
@@ -131,43 +120,45 @@ import org.yamcs.yarch.YarchDatabase;
 import org.yamcs.yarch.YarchDatabaseInstance;
 import org.yamcs.yarch.protobuf.Db.Event;
 
-public class OPCUALink extends AbstractTmDataLink
-    implements Runnable, StreamSubscriber, SystemParametersProducer {
-	
-	  private static class MyValidationListener implements DefaultCertificateValidatorListener {
+public class OPCUALink extends AbstractLink
+    implements Runnable, StreamSubscriber, SystemParametersProducer, ParameterDataLink {
 
-		    @Override
-		    public ValidationResult onValidate(Cert certificate, ApplicationDescription applicationDescription,
-		        EnumSet<CertificateCheck> passedChecks) {
-		      System.out.println("Validating Server Certificate...");
-		      if (passedChecks.containsAll(CertificateCheck.COMPULSORY)) {
-		        System.out.println("Server Certificate is valid and trusted, accepting certificate!");
-		        return ValidationResult.AcceptPermanently;
-		      } else {
-		        System.out.println("Certificate Details: " + certificate.getCertificate().toString());
-		        System.out.println("Do you want to accept this certificate?\n" + " (A=Always, Y=Yes, this time, N=No)");
-		        while (true) {
-		          try {
-		            char c;
-		            c = Character.toLowerCase((char) System.in.read());
-		            if (c == 'a') {
-		              return ValidationResult.AcceptPermanently;
-		            }
-		            if (c == 'y') {
-		              return ValidationResult.AcceptOnce;
-		            }
-		            if (c == 'n') {
-		              return ValidationResult.Reject;
-		            }
-		          } catch (IOException e) {
-		            System.out.println("Error reading input! Not accepting certificate.");
-		            return ValidationResult.Reject;
-		          }
-		        }
-		      }
-		    }
+  private static class MyValidationListener implements DefaultCertificateValidatorListener {
 
-		  }
+    @Override
+    public ValidationResult onValidate(
+        Cert certificate,
+        ApplicationDescription applicationDescription,
+        EnumSet<CertificateCheck> passedChecks) {
+      System.out.println("Validating Server Certificate...");
+      if (passedChecks.containsAll(CertificateCheck.COMPULSORY)) {
+        System.out.println("Server Certificate is valid and trusted, accepting certificate!");
+        return ValidationResult.AcceptPermanently;
+      } else {
+        System.out.println("Certificate Details: " + certificate.getCertificate().toString());
+        System.out.println(
+            "Do you want to accept this certificate?\n" + " (A=Always, Y=Yes, this time, N=No)");
+        while (true) {
+          try {
+            char c;
+            c = Character.toLowerCase((char) System.in.read());
+            if (c == 'a') {
+              return ValidationResult.AcceptPermanently;
+            }
+            if (c == 'y') {
+              return ValidationResult.AcceptOnce;
+            }
+            if (c == 'n') {
+              return ValidationResult.Reject;
+            }
+          } catch (IOException e) {
+            System.out.println("Error reading input! Not accepting certificate.");
+            return ValidationResult.Reject;
+          }
+        }
+      }
+    }
+  }
   /* Configuration Defaults */
   static long POLLING_PERIOD_DEFAULT = 1000;
   static int INITIAL_DELAY_DEFAULT = -1;
@@ -217,16 +208,17 @@ public class OPCUALink extends AbstractTmDataLink
 
   Integer appNameMax;
   Integer eventMsgMax;
-  
+
   // /yamcs/<server_id>
   private String namespace;
   private String serverId;
   XtceDb mdb;
-  
+
   static final String STREAM_NAME = "sys_param";
-  
-  
+
   Stream stream;
+
+  ParameterSink paraSink;
 
   @Override
   public Spec getSpec() {
@@ -265,18 +257,18 @@ public class OPCUALink extends AbstractTmDataLink
       log.error("Failed configuration validation.", e);
     }
 
-//    /* Instantiate our member objects. */
-//    this.eventStreamName = this.config.getString("eventStream");
-//
-//    Stream stream = YarchDatabase.getInstance(yamcsInstance).getStream(eventStreamName);
-//
-//    stream.addSubscriber(this);
+    //    /* Instantiate our member objects. */
+    //    this.eventStreamName = this.config.getString("eventStream");
+    //
+    //    Stream stream = YarchDatabase.getInstance(yamcsInstance).getStream(eventStreamName);
+    //
+    //    stream.addSubscriber(this);
     streamEventCount = 0;
 
     scheduler.scheduleAtFixedRate(
         () -> {
-//          this.outOfSync = this.logEventCount != this.streamEventCount;
-        	publishNewPVs();
+          //          this.outOfSync = this.logEventCount != this.streamEventCount;
+          publishNewPVs();
         },
         1,
         1,
@@ -314,20 +306,20 @@ public class OPCUALink extends AbstractTmDataLink
               + "'. Please use one of "
               + Charset.availableCharsets().keySet());
     }
-    
+
     YarchDatabaseInstance ydb = YarchDatabase.getInstance(yamcsInstance);
 
     stream = ydb.getStream(STREAM_NAME);
     if (stream == null) {
-        throw new ConfigurationException("Stream '" + STREAM_NAME + "' does not exist");
+      throw new ConfigurationException("Stream '" + STREAM_NAME + "' does not exist");
     }
-    
+
     mdb = YamcsServer.getServer().getInstance(yamcsInstance).getXtceDb();
-    
+
     namespace = "/instruments/tvac";
-    
+
     Parameter p = new Parameter("hello1");
-    
+
     p.setQualifiedName("/instruments/tvac/hello1");
     mdb.addParameter(p, true);
   }
@@ -353,7 +345,7 @@ public class OPCUALink extends AbstractTmDataLink
     if (isDisabled()) {
       return String.format("DISABLED");
     } else {
-      return String.format("OK, received %d packets", packetCount.get());
+      return String.format("OK, received %d packets", -1);
     }
   }
 
@@ -396,6 +388,8 @@ public class OPCUALink extends AbstractTmDataLink
     while (isRunningAndEnabled()) {
       /* Iterate through all our watch keys. */
 
+      //    	publishNewPVs();
+
       /* Sleep for the configured amount of time.  We normally sleep so we don't needlessly chew up resources. */
       try {
         Thread.sleep(this.period);
@@ -405,136 +399,115 @@ public class OPCUALink extends AbstractTmDataLink
     }
   }
 
-private void publishNewPVs() {
-	TupleDefinition tdef = StandardTupleDefinitions.PARAMETER.copy();
-//      List<Object> cols = new ArrayList<>(4 + params.size());
-     List<Object> cols = new ArrayList<>(4 + 1);
-     cols.add(Instant.now().toEpochMilli());
-     cols.add(namespace);
-     cols.add(0);
-     cols.add(Instant.now().toEpochMilli());
-//      for (ParameterValue pv : params) {
-//          if (pv == null) {
-//              log.error("Null parameter value encountered, skipping");
-//              continue;
-//          }
-//          String name = pv.getParameterQualifiedName();
-//          int idx = tdef.getColumnIndex(name);
-//          if (idx != -1) {
-//              log.warn("duplicate value for {}\nfirst: {}\n second: {}", name, cols.get(idx), pv);
-//              continue;
-//          }
-//          tdef.addColumn(name, DataType.PARAMETER_VALUE);
-//          cols.add(pv);
-//      }
-     
-     tdef.addColumn("/instruments/tvac/hello1", DataType.PARAMETER_VALUE);
-     
-     ParameterType ptype = getBasicType(mdb, Yamcs.Value.Type.UINT64, null);
-     
-     
-//      VariableParam p = (VariableParam) mdb.getParameterNames().contains("/tvac/hello1");
-//      boolean paramExists = mdb.getParameterNames().contains("/tvac/hello1");
-     boolean paramExists = false;
-     
-//	  System.out.println("Adding new val before***...:" + paramExists);
+  private void publishNewPVs() {
+    TupleDefinition tdef = StandardTupleDefinitions.PARAMETER.copy();
+    List<Object> cols = new ArrayList<>(4 + 1);
+    cols.add(Instant.now().toEpochMilli());
+    cols.add(namespace);
+    cols.add(0);
+    cols.add(Instant.now().toEpochMilli());
+    tdef.addColumn("/instruments/tvac/hello1", DataType.PARAMETER_VALUE);
+    
+    ParameterType ptype = getBasicType(mdb, Yamcs.Value.Type.SINT64, null);
+  	VariableParam p = VariableParam.getForFullyQualifiedName("/instruments/tvac/hello1");
+  	p.setParameterType(ptype);
+    
+    cols.add(getPV(p, Instant.now().toEpochMilli(), 1));
 
-     if(!paramExists) 
-     {
-	  VariableParam p = VariableParam.getForFullyQualifiedName("/instruments/tvac/hello1");
-//    	  System.out.println("ptype:" + ptype); 
-	  p.setParameterType(ptype);
-//    	  mdb.addParameter(p, true);
-//    	  System.out.println("Adding new val...");
-	  cols.add(getPV(p,Instant.now().toEpochMilli(), 1.0));
-     }
-//      if (p == null) {
-//          p = SystemParameter.getForFullyQualifiedName(parameterQualifiedNamed);
-//          p.setParameterType(ptype);
-//          addParameter(p, true);
-//      } else {
-//          if (p.getParameterType() != ptype) {
-//              throw new IllegalArgumentException("A parameter with name " + parameterQualifiedNamed
-//                      + " already exists but has a different type: " + p.getParameterType()
-//                      + " The type in the request was: " + ptype);
-//          }
-//      }
-     
-     
-//      cols.add(new ParameterValue());
-//      cols.add(new )
-     Tuple t = new Tuple(tdef, cols);
-     stream.emitTuple(t);
-}
-  
-  static private ParameterType getOrCreateType(XtceDb mdb, String name, UnitType unit,
-          Supplier<ParameterType.Builder<?>> supplier) {
+    Tuple t = new Tuple(tdef, cols);
 
-      String units;
-      if (unit != null) {
-          units = unit.getUnit();
-          if (!"1".equals(unit.getFactor())) {
-              units = unit.getFactor() + "x" + units;
-          }
-          if (unit.getPower() != 1) {
-              units = units + "^" + unit.getPower();
-          }
-          name = name + "_" + units.replaceAll("/", "_");
-      }
+    stream.emitTuple(t);
 
-      String fqn = XtceDb.YAMCS_SPACESYSTEM_NAME + NameDescription.PATH_SEPARATOR + name;
-      ParameterType ptype = mdb.getParameterType(fqn);
-      if (ptype != null) {
-          return ptype;
-      }
-      ParameterType.Builder<?> typeb = supplier.get().setName(name);
-      if (unit != null) {
-          ((BaseDataType.Builder<?>) typeb).addUnit(unit);
-      }
+//    ArrayList<ParameterValue> PVs = new ArrayList<ParameterValue>();
+//    
+//    ParameterType ptype = getBasicType(mdb, Yamcs.Value.Type.SINT64, null);
+//    VariableParam p = VariableParam.getForFullyQualifiedName("/instruments/tvac/hello1");
+//    p.setParameterType(ptype);
+//
+//    PVs.add(getPV(p, Instant.now().toEpochMilli(), 1));
 
-      ptype = typeb.build();
-      ((NameDescription) ptype).setQualifiedName(fqn);
+    System.out.println("paraSink:" + paraSink);
 
-      return mdb.addSystemParameterType(ptype);
+    //     paraSink.updateParameters(Instant.now().toEpochMilli(), namespace, 0, PVs);
   }
-  
+
+  private static ParameterType getOrCreateType(
+      XtceDb mdb, String name, UnitType unit, Supplier<ParameterType.Builder<?>> supplier) {
+
+    String units;
+    if (unit != null) {
+      units = unit.getUnit();
+      if (!"1".equals(unit.getFactor())) {
+        units = unit.getFactor() + "x" + units;
+      }
+      if (unit.getPower() != 1) {
+        units = units + "^" + unit.getPower();
+      }
+      name = name + "_" + units.replaceAll("/", "_");
+    }
+
+    String fqn = XtceDb.YAMCS_SPACESYSTEM_NAME + NameDescription.PATH_SEPARATOR + name;
+    ParameterType ptype = mdb.getParameterType(fqn);
+    if (ptype != null) {
+      return ptype;
+    }
+    ParameterType.Builder<?> typeb = supplier.get().setName(name);
+    if (unit != null) {
+      ((BaseDataType.Builder<?>) typeb).addUnit(unit);
+    }
+
+    ptype = typeb.build();
+    ((NameDescription) ptype).setQualifiedName(fqn);
+
+    return mdb.addSystemParameterType(ptype);
+  }
+
   public static ParameterType getBasicType(XtceDb mdb, Type type, UnitType unit) {
 
-      switch (type) {
+    switch (type) {
       case BINARY:
-          return getOrCreateType(mdb, "binary", unit,
-                  () -> new BinaryParameterType.Builder());
+        return getOrCreateType(mdb, "binary", unit, () -> new BinaryParameterType.Builder());
       case BOOLEAN:
-          return getOrCreateType(mdb, "boolean", unit,
-                  () -> new BooleanParameterType.Builder());
+        return getOrCreateType(mdb, "boolean", unit, () -> new BooleanParameterType.Builder());
       case STRING:
-          return getOrCreateType(mdb, "string", unit,
-                  () -> new StringParameterType.Builder());
+        return getOrCreateType(mdb, "string", unit, () -> new StringParameterType.Builder());
       case FLOAT:
-          return getOrCreateType(mdb, "float32", unit,
-                  () -> new FloatParameterType.Builder().setSizeInBits(32));
+        return getOrCreateType(
+            mdb, "float32", unit, () -> new FloatParameterType.Builder().setSizeInBits(32));
       case DOUBLE:
-          return getOrCreateType(mdb, "float64", unit,
-                  () -> new FloatParameterType.Builder().setSizeInBits(64));
+        return getOrCreateType(
+            mdb, "float64", unit, () -> new FloatParameterType.Builder().setSizeInBits(64));
       case SINT32:
-          return getOrCreateType(mdb, "sint32", unit,
-                  () -> new IntegerParameterType.Builder().setSizeInBits(32).setSigned(true));
+        return getOrCreateType(
+            mdb,
+            "sint32",
+            unit,
+            () -> new IntegerParameterType.Builder().setSizeInBits(32).setSigned(true));
       case SINT64:
-          return getOrCreateType(mdb, "sint64", unit,
-                  () -> new IntegerParameterType.Builder().setSizeInBits(64).setSigned(true));
+        return getOrCreateType(
+            mdb,
+            "sint64",
+            unit,
+            () -> new IntegerParameterType.Builder().setSizeInBits(64).setSigned(true));
       case UINT32:
-          return getOrCreateType(mdb, "uint32", unit,
-                  () -> new IntegerParameterType.Builder().setSizeInBits(32).setSigned(false));
+        return getOrCreateType(
+            mdb,
+            "uint32",
+            unit,
+            () -> new IntegerParameterType.Builder().setSizeInBits(32).setSigned(false));
       case UINT64:
-          return getOrCreateType(mdb, "uint64", unit,
-                  () -> new IntegerParameterType.Builder().setSizeInBits(64).setSigned(false));
+        return getOrCreateType(
+            mdb,
+            "uint64",
+            unit,
+            () -> new IntegerParameterType.Builder().setSizeInBits(64).setSigned(false));
       case TIMESTAMP:
-          return getOrCreateType(mdb, "time", unit, () -> new AbsoluteTimeParameterType.Builder());
+        return getOrCreateType(mdb, "time", unit, () -> new AbsoluteTimeParameterType.Builder());
       case ENUMERATED:
-          return getOrCreateType(mdb, "enum", unit, () -> new EnumeratedParameterType.Builder());
+        return getOrCreateType(mdb, "enum", unit, () -> new EnumeratedParameterType.Builder());
       default:
-          throw new IllegalArgumentException(type + "is not a basic type");
-      }
+        throw new IllegalArgumentException(type + "is not a basic type");
+    }
   }
 
   public TmPacket getNextPacket() {
@@ -552,7 +525,7 @@ private void publishNewPVs() {
         pkt.setEarthRceptionTime(timeService.getHresMissionTime());
 
         /* Give the preprocessor a chance to process the packet. */
-        pwt = packetPreprocessor.process(pkt);
+        //        pwt = packetPreprocessor.process(pkt);
         if (pwt != null) {
           /* We successfully processed the packet.  Break out so we can return it. */
           break;
@@ -576,7 +549,7 @@ private void publishNewPVs() {
   public void onTuple(Stream stream, Tuple tuple) {
     if (isRunningAndEnabled()) {
       Event event = (Event) tuple.getColumn("body");
-      updateStats(event.getMessage().length());
+      //      updateStats(event.getMessage().length());
       streamEventCount++;
     }
   }
@@ -617,9 +590,9 @@ private void publishNewPVs() {
   @Override
   protected void collectSystemParameters(long time, List<ParameterValue> list) {
     super.collectSystemParameters(time, list);
-    list.add(SystemParametersService.getPV(outOfSyncParam, time, outOfSync));
-    list.add(SystemParametersService.getPV(streamEventCountParam, time, streamEventCount));
-    list.add(SystemParametersService.getPV(logEventCountParam, time, logEventCount));
+//    list.add(SystemParametersService.getPV(outOfSyncParam, time, outOfSync));
+//    list.add(SystemParametersService.getPV(streamEventCountParam, time, streamEventCount));
+//    list.add(SystemParametersService.getPV(logEventCountParam, time, logEventCount));
   }
 
   private String decodeString(ByteBuffer buf, int maxLength) {
@@ -640,166 +613,237 @@ private void publishNewPVs() {
 
     return r;
   }
-  
-  private void initOPCUAConnection() throws ServiceResultException 
-  {
-//	    if (args.length == 0) {
-//	        System.out.println("Usage: SampleClient [server uri]");
-//	        return;
-//	      }
-//	      String url = args[0];
 
-	  //	  FIXME: url should be part of config in YAML
-	      String url = "";
-	      System.out.print("SampleClient: Connecting to " + url + " .. ");
-	      
-	      System.out.println("**********************************1");
+  private void initOPCUAConnection() throws ServiceResultException {
+    //	    if (args.length == 0) {
+    //	        System.out.println("Usage: SampleClient [server uri]");
+    //	        return;
+    //	      }
+    //	      String url = args[0];
 
-	      ////////////// CLIENT //////////////
-	      // Create Client
+    //	  FIXME: url should be part of config in YAML
+    String url = "";
+    System.out.print("SampleClient: Connecting to " + url + " .. ");
 
-	      // Set default key size for created certificates. The default value is also 2048,
-	      // but in some cases you may want to specify a different size.
-	      CertificateUtils.setKeySize(2048);
+    System.out.println("**********************************1");
 
-	      // Try to load an application certificate with the specified application name.
-	      // In case it is not found, a new certificate is created.
-	      final KeyPair pair = ExampleKeys.getCert("SampleClient");
+    ////////////// CLIENT //////////////
+    // Create Client
 
-	      // Create the client using information provided by the created certificate
-	      final Client myClient = Client.createClientApplication(pair);
+    // Set default key size for created certificates. The default value is also 2048,
+    // but in some cases you may want to specify a different size.
+    CertificateUtils.setKeySize(2048);
 
-	      myClient.getApplication().addLocale(Locale.ENGLISH);
-	      myClient.getApplication().setApplicationName(new LocalizedText("Java Sample Client", Locale.ENGLISH));
-	      myClient.getApplication().setProductUri("urn:JavaSampleClient");
-	      
-	      System.out.println("**********************************2");
+    // Try to load an application certificate with the specified application name.
+    // In case it is not found, a new certificate is created.
+    final KeyPair pair = ExampleKeys.getCert("SampleClient");
 
-	      // Create a certificate store for handling server certificates.
-	      // The constructor uses relative path "SampleClientPKI/CA" as the base directory, storing
-	      // rejected certificates in folder "rejected" and trusted certificates in folder "trusted".
-	      // To accept a server certificate, a rejected certificate needs to be moved from rejected to
-	      // trusted folder. This can be performed by moving the certificate manually, using method
-	      // addTrustedCertificate of PkiDirectoryCertificateStore or, as in this example, using a
-	      // custom implementation of DefaultCertificateValidatorListener.
-	      final PkiDirectoryCertificateStore myCertStore = new PkiDirectoryCertificateStore("SampleClientPKI/CA");
+    // Create the client using information provided by the created certificate
+    final Client myClient = Client.createClientApplication(pair);
 
-	      // Create a default certificate validator for validating server certificates in the certificate
-	      // store.
-	      final DefaultCertificateValidator myValidator = new DefaultCertificateValidator(myCertStore);
+    myClient.getApplication().addLocale(Locale.ENGLISH);
+    myClient
+        .getApplication()
+        .setApplicationName(new LocalizedText("Java Sample Client", Locale.ENGLISH));
+    myClient.getApplication().setProductUri("urn:JavaSampleClient");
 
-	      // Set MyValidationListener instance as the ValidatorListener. In case a certificate is not
-	      // automatically accepted, user can choose to reject or accept the certificate.
-	      final MyValidationListener myValidationListener = new MyValidationListener();
-	      myValidator.setValidationListener(myValidationListener);
+    System.out.println("**********************************2");
 
-	      // Set myValidator as the validator for OpcTcp and Https
-	      myClient.getApplication().getOpctcpSettings().setCertificateValidator(myValidator);
-	      myClient.getApplication().getHttpsSettings().setCertificateValidator(myValidator);
+    // Create a certificate store for handling server certificates.
+    // The constructor uses relative path "SampleClientPKI/CA" as the base directory, storing
+    // rejected certificates in folder "rejected" and trusted certificates in folder "trusted".
+    // To accept a server certificate, a rejected certificate needs to be moved from rejected to
+    // trusted folder. This can be performed by moving the certificate manually, using method
+    // addTrustedCertificate of PkiDirectoryCertificateStore or, as in this example, using a
+    // custom implementation of DefaultCertificateValidatorListener.
+    final PkiDirectoryCertificateStore myCertStore =
+        new PkiDirectoryCertificateStore("SampleClientPKI/CA");
 
-	      // The HTTPS SecurityPolicies are defined separate from the endpoint securities
-	      myClient.getApplication().getHttpsSettings().setHttpsSecurityPolicies(HttpsSecurityPolicy.ALL_104);
+    // Create a default certificate validator for validating server certificates in the certificate
+    // store.
+    final DefaultCertificateValidator myValidator = new DefaultCertificateValidator(myCertStore);
 
-	      // The certificate to use for HTTPS
-	      KeyPair myHttpsCertificate = ExampleKeys.getHttpsCert("SampleClient");
-	      myClient.getApplication().getHttpsSettings().setKeyPair(myHttpsCertificate);
+    // Set MyValidationListener instance as the ValidatorListener. In case a certificate is not
+    // automatically accepted, user can choose to reject or accept the certificate.
+    final MyValidationListener myValidationListener = new MyValidationListener();
+    myValidator.setValidationListener(myValidationListener);
 
-	      SessionChannel mySession = myClient.createSessionChannel(url);
-	      // mySession.activate("username", "123");
-	      mySession.activate();
-	      //////////////////////////////////////
+    // Set myValidator as the validator for OpcTcp and Https
+    myClient.getApplication().getOpctcpSettings().setCertificateValidator(myValidator);
+    myClient.getApplication().getHttpsSettings().setCertificateValidator(myValidator);
 
-	      ///////////// EXECUTE //////////////
-	      // Browse Root
-	      BrowseDescription browse = new BrowseDescription();
-	      browse.setNodeId(Identifiers.RootFolder);
-	      browse.setBrowseDirection(BrowseDirection.Forward);
-	      browse.setIncludeSubtypes(true);
-	      browse.setNodeClassMask(NodeClass.Object, NodeClass.Variable);
-	      browse.setResultMask(BrowseResultMask.All);
-	      BrowseResponse res3 = mySession.Browse(null, null, null, browse);
-	      System.out.println("**********************************3");
-	      System.out.println(res3);
+    // The HTTPS SecurityPolicies are defined separate from the endpoint securities
+    myClient
+        .getApplication()
+        .getHttpsSettings()
+        .setHttpsSecurityPolicies(HttpsSecurityPolicy.ALL_104);
 
-	      // Read Namespace Array
-	      ReadResponse res5 = mySession.Read(null, null, TimestampsToReturn.Neither,
-	          new ReadValueId(Identifiers.Server_NamespaceArray, Attributes.Value, null, null));
-	      String[] namespaceArray = (String[]) res5.getResults()[0].getValue().getValue();
-	      System.out.println("**********************************4");
-	      System.out.println(Arrays.toString(namespaceArray));
+    // The certificate to use for HTTPS
+    KeyPair myHttpsCertificate = ExampleKeys.getHttpsCert("SampleClient");
+    myClient.getApplication().getHttpsSettings().setKeyPair(myHttpsCertificate);
 
-	      // Read a variable (Works with NanoServer example!)
-	      ReadResponse res4 = mySession.Read(null, 500.0, TimestampsToReturn.Source,
-	          new ReadValueId(new NodeId(1, "Boolean"), Attributes.Value, null, null));
-	      System.out.println("**********************************5");
-	      System.out.println(res4);
+    SessionChannel mySession = myClient.createSessionChannel(url);
+    // mySession.activate("username", "123");
+    mySession.activate();
+    //////////////////////////////////////
 
-	      // Press enter to shutdown
-	      System.out.println("Enter 'x' to shutdown");
-//	      while (System.in.read() != 'x') {
-//	        ;
-//	      }
+    ///////////// EXECUTE //////////////
+    // Browse Root
+    BrowseDescription browse = new BrowseDescription();
+    browse.setNodeId(Identifiers.RootFolder);
+    browse.setBrowseDirection(BrowseDirection.Forward);
+    browse.setIncludeSubtypes(true);
+    browse.setNodeClassMask(NodeClass.Object, NodeClass.Variable);
+    browse.setResultMask(BrowseResultMask.All);
+    BrowseResponse res3 = mySession.Browse(null, null, null, browse);
+    System.out.println("**********************************3");
+    System.out.println(res3);
 
-	      ///////////// SHUTDOWN /////////////
-	      mySession.close();
-	      mySession.closeAsync();
-	      //////////////////////////////////////
-	  
+    // Read Namespace Array
+    ReadResponse res5 =
+        mySession.Read(
+            null,
+            null,
+            TimestampsToReturn.Neither,
+            new ReadValueId(Identifiers.Server_NamespaceArray, Attributes.Value, null, null));
+    String[] namespaceArray = (String[]) res5.getResults()[0].getValue().getValue();
+    System.out.println("**********************************4");
+    System.out.println(Arrays.toString(namespaceArray));
+
+    // Read a variable (Works with NanoServer example!)
+    ReadResponse res4 =
+        mySession.Read(
+            null,
+            500.0,
+            TimestampsToReturn.Source,
+            new ReadValueId(new NodeId(1, "Boolean"), Attributes.Value, null, null));
+    System.out.println("**********************************5");
+    System.out.println(res4);
+
+    // Press enter to shutdown
+    System.out.println("Enter 'x' to shutdown");
+    //	      while (System.in.read() != 'x') {
+    //	        ;
+    //	      }
+
+    ///////////// SHUTDOWN /////////////
+    mySession.close();
+    mySession.closeAsync();
+    //////////////////////////////////////
+
   }
-  
-  
+
   public static ParameterValue getNewPv(Parameter parameter, long time) {
-      ParameterValue pv = new ParameterValue(parameter);
-      pv.setAcquisitionTime(time);
-      pv.setGenerationTime(time);
-      return pv;
+    ParameterValue pv = new ParameterValue(parameter);
+    pv.setAcquisitionTime(time);
+    pv.setGenerationTime(time);
+    return pv;
   }
 
   public static ParameterValue getPV(Parameter parameter, long time, String v) {
-      ParameterValue pv = getNewPv(parameter, time);
-      pv.setEngValue(ValueUtility.getStringValue(v));
-      return pv;
+    ParameterValue pv = getNewPv(parameter, time);
+    pv.setEngValue(ValueUtility.getStringValue(v));
+    return pv;
   }
 
   public static ParameterValue getPV(Parameter parameter, long time, double v) {
-      ParameterValue pv = getNewPv(parameter, time);
-      pv.setEngValue(ValueUtility.getDoubleValue(v));
-      return pv;
+    ParameterValue pv = getNewPv(parameter, time);
+    pv.setEngValue(ValueUtility.getDoubleValue(v));
+    return pv;
   }
 
   public static ParameterValue getPV(Parameter parameter, long time, float v) {
-      ParameterValue pv = getNewPv(parameter, time);
-      pv.setEngValue(ValueUtility.getFloatValue(v));
-      return pv;
+    ParameterValue pv = getNewPv(parameter, time);
+    pv.setEngValue(ValueUtility.getFloatValue(v));
+    return pv;
   }
 
   public static ParameterValue getPV(Parameter parameter, long time, boolean v) {
-      ParameterValue pv = getNewPv(parameter, time);
-      pv.setEngValue(ValueUtility.getBooleanValue(v));
-      return pv;
+    ParameterValue pv = getNewPv(parameter, time);
+    pv.setEngValue(ValueUtility.getBooleanValue(v));
+    return pv;
   }
 
   public static ParameterValue getPV(Parameter parameter, long time, long v) {
-      ParameterValue pv = getNewPv(parameter, time);
-      pv.setEngValue(ValueUtility.getSint64Value(v));
-      return pv;
+    ParameterValue pv = getNewPv(parameter, time);
+    pv.setEngValue(ValueUtility.getSint64Value(v));
+    return pv;
   }
 
   public static ParameterValue getUnsignedIntPV(Parameter parameter, long time, int v) {
-      ParameterValue pv = getNewPv(parameter, time);
-      pv.setEngValue(ValueUtility.getUint64Value(v));
-      return pv;
+    ParameterValue pv = getNewPv(parameter, time);
+    pv.setEngValue(ValueUtility.getUint64Value(v));
+    return pv;
   }
 
   public static <T extends Enum<T>> ParameterValue getPV(Parameter parameter, long time, T v) {
-      ParameterValue pv = getNewPv(parameter, time);
-      pv.setEngValue(ValueUtility.getEnumeratedValue(v.ordinal(), v.name()));
-      return pv;
+    ParameterValue pv = getNewPv(parameter, time);
+    pv.setEngValue(ValueUtility.getEnumeratedValue(v.ordinal(), v.name()));
+    return pv;
   }
 
   public static ParameterValue getPV(Parameter parameter, long time, Value v) {
-      ParameterValue pv = getNewPv(parameter, time);
-      pv.setEngValue(v);
-      return pv;
+    ParameterValue pv = getNewPv(parameter, time);
+    pv.setEngValue(v);
+    return pv;
   }
+
+  @Override
+  public void setParameterSink(ParameterSink parameterSink) {
+    this.paraSink = parameterSink;
+  }
+
+  @Override
+  public Status getLinkStatus() {
+    // TODO Auto-generated method stub
+    return Status.OK;
+  }
+
+  @Override
+  public void enable() {
+    // TODO Auto-generated method stub
+
+  }
+
+  @Override
+  public void disable() {
+    // TODO Auto-generated method stub
+
+  }
+
+  @Override
+  public boolean isDisabled() {
+    // TODO Auto-generated method stub
+    return false;
+  }
+
+  @Override
+  public long getDataInCount() {
+    // TODO Auto-generated method stub
+    return 0;
+  }
+
+  @Override
+  public long getDataOutCount() {
+    // TODO Auto-generated method stub
+    return 0;
+  }
+
+  @Override
+  public void resetCounters() {
+    // TODO Auto-generated method stub
+
+  }
+
+//  @Override
+//  public String getName() {
+//    // TODO Auto-generated method stub
+//    return null;
+//  }
+
+//  @Override
+//  public YConfiguration getConfig() {
+//    // TODO Auto-generated method stub
+//    return null;
+//  }
 }
