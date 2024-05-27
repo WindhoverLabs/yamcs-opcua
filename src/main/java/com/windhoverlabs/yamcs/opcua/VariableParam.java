@@ -40,6 +40,6 @@ public class VariableParam extends Parameter {
 
   @Override
   public String toString() {
-    return "SysParam(qname=" + getQualifiedName() + ")";
+    return "VariableParam(qname=" + getQualifiedName() + ")";
   }
 }

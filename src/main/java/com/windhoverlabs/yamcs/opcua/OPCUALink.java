@@ -93,7 +93,6 @@ import org.yamcs.tctm.AbstractLink;
 import org.yamcs.tctm.CcsdsPacketInputStream;
 import org.yamcs.tctm.PacketInputStream;
 import org.yamcs.tctm.PacketTooLongException;
-import org.yamcs.tctm.ParameterDataLink;
 import org.yamcs.tctm.ParameterSink;
 import org.yamcs.utils.ValueUtility;
 import org.yamcs.utils.YObjectLoader;
@@ -101,6 +100,7 @@ import org.yamcs.xtce.AbsoluteTimeParameterType;
 import org.yamcs.xtce.BaseDataType;
 import org.yamcs.xtce.BinaryParameterType;
 import org.yamcs.xtce.BooleanParameterType;
+import org.yamcs.xtce.DataSource;
 import org.yamcs.xtce.EnumeratedParameterType;
 import org.yamcs.xtce.FloatParameterType;
 import org.yamcs.xtce.IntegerParameterType;
@@ -121,7 +121,7 @@ import org.yamcs.yarch.YarchDatabaseInstance;
 import org.yamcs.yarch.protobuf.Db.Event;
 
 public class OPCUALink extends AbstractLink
-    implements Runnable, StreamSubscriber, SystemParametersProducer, ParameterDataLink {
+    implements Runnable, StreamSubscriber, SystemParametersProducer {
 
   private static class MyValidationListener implements DefaultCertificateValidatorListener {
 
@@ -220,6 +220,15 @@ public class OPCUALink extends AbstractLink
 
   ParameterSink paraSink;
 
+  //  NOTE:ALWAYS re-use this param as org.yamcs.parameter.ParameterRequestManager.param2RequestMap
+  //  uses the object inside a map that was added to the mdb for the very fist time.
+  //  If when publishing the PV, we create a new VariableParam object clients will NOT
+  //  receive real-time updates as the new object VariableParam inside the new PV won't match the
+  // one
+  //  inside org.yamcs.parameter.ParameterRequestManager.param2RequestMap since the object hashes
+  //  do not match (since VariableParam does not override its hash function).
+  private VariableParam p;
+
   @Override
   public Spec getSpec() {
     Spec spec = new Spec();
@@ -265,15 +274,6 @@ public class OPCUALink extends AbstractLink
     //    stream.addSubscriber(this);
     streamEventCount = 0;
 
-    scheduler.scheduleAtFixedRate(
-        () -> {
-          //          this.outOfSync = this.logEventCount != this.streamEventCount;
-          publishNewPVs();
-        },
-        1,
-        1,
-        TimeUnit.SECONDS);
-
     /* Now get the packet input stream processor class name.  This is optional, so
      * if its not provided, use the CcsdsPacketInputStream as default. */
     if (config.containsKey("packetInputStreamClassName")) {
@@ -318,10 +318,28 @@ public class OPCUALink extends AbstractLink
 
     namespace = "/instruments/tvac";
 
-    Parameter p = new Parameter("hello1");
+    //    VariableParam p = new VariableParam("hello1");
+    p = VariableParam.getForFullyQualifiedName("/instruments/tvac/hello1");
+
+    ParameterType ptype = getBasicType(mdb, Yamcs.Value.Type.SINT64, null);
 
     p.setQualifiedName("/instruments/tvac/hello1");
+    p.setDataSource(DataSource.SYSTEM);
+    p.setParameterType(ptype);
     mdb.addParameter(p, true);
+
+    //    ParameterType ptype = getBasicType(mdb, Yamcs.Value.Type.SINT64, null);
+    //  	VariableParam p = VariableParam.getForFullyQualifiedName("/instruments/tvac/hello1");
+    //  	p.setParameterType(ptype);
+
+    scheduler.scheduleAtFixedRate(
+        () -> {
+          //          this.outOfSync = this.logEventCount != this.streamEventCount;
+          publishNewPVs();
+        },
+        1,
+        1,
+        TimeUnit.SECONDS);
   }
 
   @Override
@@ -402,33 +420,19 @@ public class OPCUALink extends AbstractLink
   private void publishNewPVs() {
     TupleDefinition tdef = StandardTupleDefinitions.PARAMETER.copy();
     List<Object> cols = new ArrayList<>(4 + 1);
-    cols.add(Instant.now().toEpochMilli());
+    long gentime = timeService.getMissionTime();
+    cols.add(gentime);
     cols.add(namespace);
     cols.add(0);
-    cols.add(Instant.now().toEpochMilli());
+    cols.add(gentime);
+
     tdef.addColumn("/instruments/tvac/hello1", DataType.PARAMETER_VALUE);
-    
-    ParameterType ptype = getBasicType(mdb, Yamcs.Value.Type.SINT64, null);
-  	VariableParam p = VariableParam.getForFullyQualifiedName("/instruments/tvac/hello1");
-  	p.setParameterType(ptype);
-    
-    cols.add(getPV(p, Instant.now().toEpochMilli(), 1));
+
+    cols.add(getPV(p, Instant.now().toEpochMilli(), 1L));
 
     Tuple t = new Tuple(tdef, cols);
 
     stream.emitTuple(t);
-
-//    ArrayList<ParameterValue> PVs = new ArrayList<ParameterValue>();
-//    
-//    ParameterType ptype = getBasicType(mdb, Yamcs.Value.Type.SINT64, null);
-//    VariableParam p = VariableParam.getForFullyQualifiedName("/instruments/tvac/hello1");
-//    p.setParameterType(ptype);
-//
-//    PVs.add(getPV(p, Instant.now().toEpochMilli(), 1));
-
-    System.out.println("paraSink:" + paraSink);
-
-    //     paraSink.updateParameters(Instant.now().toEpochMilli(), namespace, 0, PVs);
   }
 
   private static ParameterType getOrCreateType(
@@ -590,9 +594,9 @@ public class OPCUALink extends AbstractLink
   @Override
   protected void collectSystemParameters(long time, List<ParameterValue> list) {
     super.collectSystemParameters(time, list);
-//    list.add(SystemParametersService.getPV(outOfSyncParam, time, outOfSync));
-//    list.add(SystemParametersService.getPV(streamEventCountParam, time, streamEventCount));
-//    list.add(SystemParametersService.getPV(logEventCountParam, time, logEventCount));
+    //    list.add(SystemParametersService.getPV(outOfSyncParam, time, outOfSync));
+    //    list.add(SystemParametersService.getPV(streamEventCountParam, time, streamEventCount));
+    //    list.add(SystemParametersService.getPV(logEventCountParam, time, logEventCount));
   }
 
   private String decodeString(ByteBuffer buf, int maxLength) {
@@ -788,10 +792,10 @@ public class OPCUALink extends AbstractLink
     return pv;
   }
 
-  @Override
-  public void setParameterSink(ParameterSink parameterSink) {
-    this.paraSink = parameterSink;
-  }
+  //  @Override
+  //  public void setParameterSink(ParameterSink parameterSink) {
+  //    this.paraSink = parameterSink;
+  //  }
 
   @Override
   public Status getLinkStatus() {
@@ -801,7 +805,7 @@ public class OPCUALink extends AbstractLink
 
   @Override
   public void enable() {
-    // TODO Auto-generated method stub
+    // TODO Auto-generated method stubf
 
   }
 
@@ -835,15 +839,15 @@ public class OPCUALink extends AbstractLink
 
   }
 
-//  @Override
-//  public String getName() {
-//    // TODO Auto-generated method stub
-//    return null;
-//  }
+  //  @Override
+  //  public String getName() {
+  //    // TODO Auto-generated method stub
+  //    return null;
+  //  }
 
-//  @Override
-//  public YConfiguration getConfig() {
-//    // TODO Auto-generated method stub
-//    return null;
-//  }
+  //  @Override
+  //  public YConfiguration getConfig() {
+  //    // TODO Auto-generated method stub
+  //    return null;
+  //  }
 }
