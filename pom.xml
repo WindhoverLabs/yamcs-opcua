@@ -91,10 +91,13 @@
   		<version>4.4.4</version>
   	</dependency>
   	<dependency>
-  		<groupId>org.bouncycastle</groupId>
+<!--  		<groupId>org.bouncycastle</groupId>
+  		<artifactId>bcpkix-jdk18on</artifactId>
+  		<version>1.78.1</version>-->
+  		
+  		  		<groupId>org.bouncycastle</groupId>
   		<artifactId>bcpkix-jdk15to18</artifactId>
-  		<version>1.64</version>
-  		<scope>runtime</scope>
+  		<version>1.64</version> 
   	</dependency>
 
 	</dependencies>

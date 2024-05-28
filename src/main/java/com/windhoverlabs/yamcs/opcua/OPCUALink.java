@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2022 Windhover Labs, L.L.C. All rights reserved.
+ *   Copyright (c) 2024 Windhover Labs, L.L.C. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -34,7 +34,6 @@
 package com.windhoverlabs.yamcs.opcua;
 
 import com.google.common.io.BaseEncoding;
-import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -46,6 +45,7 @@ import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Random;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -79,7 +79,6 @@ import org.yamcs.ConfigurationException;
 import org.yamcs.Spec;
 import org.yamcs.Spec.OptionType;
 import org.yamcs.StandardTupleDefinitions;
-import org.yamcs.TmPacket;
 import org.yamcs.ValidationException;
 import org.yamcs.YConfiguration;
 import org.yamcs.YamcsServer;
@@ -87,20 +86,17 @@ import org.yamcs.parameter.ParameterValue;
 import org.yamcs.parameter.SystemParametersProducer;
 import org.yamcs.parameter.SystemParametersService;
 import org.yamcs.parameter.Value;
+import org.yamcs.protobuf.Event;
 import org.yamcs.protobuf.Yamcs;
 import org.yamcs.protobuf.Yamcs.Value.Type;
 import org.yamcs.tctm.AbstractLink;
-import org.yamcs.tctm.CcsdsPacketInputStream;
 import org.yamcs.tctm.PacketInputStream;
-import org.yamcs.tctm.PacketTooLongException;
 import org.yamcs.tctm.ParameterSink;
 import org.yamcs.utils.ValueUtility;
-import org.yamcs.utils.YObjectLoader;
 import org.yamcs.xtce.AbsoluteTimeParameterType;
 import org.yamcs.xtce.BaseDataType;
 import org.yamcs.xtce.BinaryParameterType;
 import org.yamcs.xtce.BooleanParameterType;
-import org.yamcs.xtce.DataSource;
 import org.yamcs.xtce.EnumeratedParameterType;
 import org.yamcs.xtce.FloatParameterType;
 import org.yamcs.xtce.IntegerParameterType;
@@ -118,7 +114,6 @@ import org.yamcs.yarch.Tuple;
 import org.yamcs.yarch.TupleDefinition;
 import org.yamcs.yarch.YarchDatabase;
 import org.yamcs.yarch.YarchDatabaseInstance;
-import org.yamcs.yarch.protobuf.Db.Event;
 
 public class OPCUALink extends AbstractLink
     implements Runnable, StreamSubscriber, SystemParametersProducer {
@@ -166,8 +161,6 @@ public class OPCUALink extends AbstractLink
   static boolean CLEAR_BUCKETS_AT_STARTUP_DEFAULT = false;
   static boolean DELETE_FILE_AFTER_PROCESSING_DEFAULT = false;
 
-  private boolean outOfSync = false;
-
   private Parameter outOfSyncParam;
   private Parameter streamEventCountParam;
   private Parameter logEventCountParam;
@@ -191,9 +184,8 @@ public class OPCUALink extends AbstractLink
   protected PacketInputStream packetInputStream;
   protected Thread thread;
 
-  private String eventStreamName;
+  private String opcuaStreamName;
 
-  static final String RECTIME_CNAME = "rectime";
   static final String DATA_EVENT_CNAME = "data";
 
   private Charset charset;
@@ -214,11 +206,12 @@ public class OPCUALink extends AbstractLink
   private String serverId;
   XtceDb mdb;
 
-  static final String STREAM_NAME = "sys_param";
+  static final String STREAM_NAME = "opcua_params";
 
-  Stream stream;
+  Stream opcuaStream;
 
   ParameterSink paraSink;
+  private static TupleDefinition gftdef = StandardTupleDefinitions.PARAMETER.copy();
 
   //  NOTE:ALWAYS re-use this param as org.yamcs.parameter.ParameterRequestManager.param2RequestMap
   //  uses the object inside a map that was added to the mdb for the very fist time.
@@ -237,17 +230,17 @@ public class OPCUALink extends AbstractLink
     /* Define our configuration parameters. */
     spec.addOption("name", OptionType.STRING).withRequired(true);
     spec.addOption("class", OptionType.STRING).withRequired(true);
-    spec.addOption("stream", OptionType.STRING).withRequired(true);
-
-    spec.addOption("packetInputStreamClassName", OptionType.STRING).withRequired(false);
-    spec.addOption("packetPreprocessorClassName", OptionType.STRING).withRequired(true);
-    /* Set the preprocessor argument config parameters to "allowUnknownKeys".  We don't know
-    or care what
-        * these parameters are.  Let the preprocessor define them. */
-    preprocessorSpec.allowUnknownKeys(true);
-    spec.addOption("packetPreprocessorArgs", OptionType.MAP)
-        .withRequired(true)
-        .withSpec(preprocessorSpec);
+    spec.addOption("opcua_stream", OptionType.STRING).withRequired(true);
+    //
+    //    spec.addOption("packetInputStreamClassName", OptionType.STRING).withRequired(false);
+    //    spec.addOption("packetPreprocessorClassName", OptionType.STRING).withRequired(true);
+    //    /* Set the preprocessor argument config parameters to "allowUnknownKeys".  We don't know
+    //    or care what
+    //        * these parameters are.  Let the preprocessor define them. */
+    //    preprocessorSpec.allowUnknownKeys(true);
+    //    spec.addOption("packetPreprocessorArgs", OptionType.MAP)
+    //        .withRequired(true)
+    //        .withSpec(preprocessorSpec);
 
     return spec;
   }
@@ -265,36 +258,29 @@ public class OPCUALink extends AbstractLink
     } catch (ValidationException e) {
       log.error("Failed configuration validation.", e);
     }
-
-    //    /* Instantiate our member objects. */
-    //    this.eventStreamName = this.config.getString("eventStream");
-    //
-    //    Stream stream = YarchDatabase.getInstance(yamcsInstance).getStream(eventStreamName);
-    //
-    //    stream.addSubscriber(this);
     streamEventCount = 0;
 
     /* Now get the packet input stream processor class name.  This is optional, so
      * if its not provided, use the CcsdsPacketInputStream as default. */
-    if (config.containsKey("packetInputStreamClassName")) {
-      packetInputStreamClassName = config.getString("packetInputStreamClassName");
-      if (config.containsKey("packetInputStreamArgs")) {
-        packetInputStreamArgs = config.getConfig("packetInputStreamArgs");
-      } else {
-        packetInputStreamArgs = YConfiguration.emptyConfig();
-      }
-    } else {
-      packetInputStreamClassName = CcsdsPacketInputStream.class.getName();
-      packetInputStreamArgs = YConfiguration.emptyConfig();
-    }
+    //    if (config.containsKey("packetInputStreamClassName")) {
+    //      packetInputStreamClassName = config.getString("packetInputStreamClassName");
+    //      if (config.containsKey("packetInputStreamArgs")) {
+    //        packetInputStreamArgs = config.getConfig("packetInputStreamArgs");
+    //      } else {
+    //        packetInputStreamArgs = YConfiguration.emptyConfig();
+    //      }
+    //    } else {
+    //      packetInputStreamClassName = CcsdsPacketInputStream.class.getName();
+    //      packetInputStreamArgs = YConfiguration.emptyConfig();
+    //    }
 
     /* Now create the packet input stream process */
-    try {
-      packetInputStream = YObjectLoader.loadObject(packetInputStreamClassName);
-    } catch (ConfigurationException e) {
-      log.error("Cannot instantiate the packetInput stream", e);
-      throw e;
-    }
+    //    try {
+    //      packetInputStream = YObjectLoader.loadObject(packetInputStreamClassName);
+    //    } catch (ConfigurationException e) {
+    //      log.error("Cannot instantiate the packetInput stream", e);
+    //      throw e;
+    //    }
 
     String chrname = config.getString("charset", "US-ASCII");
     try {
@@ -309,10 +295,9 @@ public class OPCUALink extends AbstractLink
 
     YarchDatabaseInstance ydb = YarchDatabase.getInstance(yamcsInstance);
 
-    stream = ydb.getStream(STREAM_NAME);
-    if (stream == null) {
-      throw new ConfigurationException("Stream '" + STREAM_NAME + "' does not exist");
-    }
+    this.opcuaStreamName = config.getString("opcua_stream");
+
+    opcuaStream = getStream(ydb, opcuaStreamName);
 
     mdb = YamcsServer.getServer().getInstance(yamcsInstance).getXtceDb();
 
@@ -324,22 +309,30 @@ public class OPCUALink extends AbstractLink
     ParameterType ptype = getBasicType(mdb, Yamcs.Value.Type.SINT64, null);
 
     p.setQualifiedName("/instruments/tvac/hello1");
-    p.setDataSource(DataSource.SYSTEM);
     p.setParameterType(ptype);
     mdb.addParameter(p, true);
 
-    //    ParameterType ptype = getBasicType(mdb, Yamcs.Value.Type.SINT64, null);
-    //  	VariableParam p = VariableParam.getForFullyQualifiedName("/instruments/tvac/hello1");
-    //  	p.setParameterType(ptype);
-
     scheduler.scheduleAtFixedRate(
         () -> {
-          //          this.outOfSync = this.logEventCount != this.streamEventCount;
           publishNewPVs();
         },
         1,
         1,
         TimeUnit.SECONDS);
+  }
+
+  private static Stream getStream(YarchDatabaseInstance ydb, String streamName) {
+    Stream stream = ydb.getStream(streamName);
+    if (stream == null) {
+      try {
+        ydb.execute("create stream " + streamName + gftdef.getStringDefinition());
+      } catch (Exception e) {
+        throw new ConfigurationException(e);
+      }
+
+      stream = ydb.getStream(streamName);
+    }
+    return stream;
   }
 
   @Override
@@ -375,6 +368,12 @@ public class OPCUALink extends AbstractLink
   @Override
   protected void doStart() {
     if (!isDisabled()) {
+      try {
+        initOPCUAConnection();
+      } catch (ServiceResultException e) {
+        // TODO Auto-generated catch block
+        e.printStackTrace();
+      }
       doEnable();
     }
     notifyStarted();
@@ -418,7 +417,7 @@ public class OPCUALink extends AbstractLink
   }
 
   private void publishNewPVs() {
-    TupleDefinition tdef = StandardTupleDefinitions.PARAMETER.copy();
+    TupleDefinition tdef = gftdef.copy();
     List<Object> cols = new ArrayList<>(4 + 1);
     long gentime = timeService.getMissionTime();
     cols.add(gentime);
@@ -428,11 +427,11 @@ public class OPCUALink extends AbstractLink
 
     tdef.addColumn("/instruments/tvac/hello1", DataType.PARAMETER_VALUE);
 
-    cols.add(getPV(p, Instant.now().toEpochMilli(), 1L));
+    cols.add(getPV(p, Instant.now().toEpochMilli(), new Random().nextLong()));
 
     Tuple t = new Tuple(tdef, cols);
 
-    stream.emitTuple(t);
+    opcuaStream.emitTuple(t);
   }
 
   private static ParameterType getOrCreateType(
@@ -514,41 +513,6 @@ public class OPCUALink extends AbstractLink
     }
   }
 
-  public TmPacket getNextPacket() {
-    TmPacket pwt = null;
-    while (isRunningAndEnabled()) {
-      try {
-        /* Get a packet from the packet input stream plugin. */
-        byte[] packet = packetInputStream.readPacket();
-        if (packet == null) {
-          /* Something went wrong.  Return null. */
-          break;
-        }
-
-        TmPacket pkt = new TmPacket(timeService.getMissionTime(), packet);
-        pkt.setEarthRceptionTime(timeService.getHresMissionTime());
-
-        /* Give the preprocessor a chance to process the packet. */
-        //        pwt = packetPreprocessor.process(pkt);
-        if (pwt != null) {
-          /* We successfully processed the packet.  Break out so we can return it. */
-          break;
-        }
-      } catch (EOFException e) {
-        /* We read the EOF.  This is not an error condition, so don't throw the exception. Just
-         * return a null to let the caller know we're at the end. */
-        pwt = null;
-        break;
-      } catch (PacketTooLongException | IOException e) {
-        /* Something went wrong.  Return null. */
-        pwt = null;
-        e.printStackTrace();
-      }
-    }
-
-    return pwt;
-  }
-
   @Override
   public void onTuple(Stream stream, Tuple tuple) {
     if (isRunningAndEnabled()) {
@@ -626,7 +590,7 @@ public class OPCUALink extends AbstractLink
     //	      String url = args[0];
 
     //	  FIXME: url should be part of config in YAML
-    String url = "";
+    String url = "opc.tcp://0.0.0.0:4840/freeopcua/server/";
     System.out.print("SampleClient: Connecting to " + url + " .. ");
 
     System.out.println("**********************************1");

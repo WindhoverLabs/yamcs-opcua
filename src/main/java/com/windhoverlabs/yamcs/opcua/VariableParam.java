@@ -34,7 +34,7 @@ public class VariableParam extends Parameter {
     } else if (fqname.startsWith(XtceDb.YAMCS_CMDHIST_SPACESYSTEM_NAME)) {
       return DataSource.COMMAND_HISTORY;
     } else {
-      return DataSource.SYSTEM;
+      return DataSource.TELEMETERED;
     }
   }
 
