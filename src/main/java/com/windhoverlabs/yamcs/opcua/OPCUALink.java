@@ -33,48 +33,20 @@
 
 package com.windhoverlabs.yamcs.opcua;
 
+
 import com.google.common.io.BaseEncoding;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.Charset;
 import java.nio.charset.UnsupportedCharsetException;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.EnumSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Random;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
-import org.opcfoundation.ua.application.Client;
-import org.opcfoundation.ua.application.SessionChannel;
-import org.opcfoundation.ua.builtintypes.LocalizedText;
-import org.opcfoundation.ua.builtintypes.NodeId;
-import org.opcfoundation.ua.cert.CertificateCheck;
-import org.opcfoundation.ua.cert.DefaultCertificateValidator;
-import org.opcfoundation.ua.cert.DefaultCertificateValidatorListener;
-import org.opcfoundation.ua.cert.PkiDirectoryCertificateStore;
-import org.opcfoundation.ua.cert.ValidationResult;
-import org.opcfoundation.ua.common.ServiceResultException;
-import org.opcfoundation.ua.core.ApplicationDescription;
-import org.opcfoundation.ua.core.Attributes;
-import org.opcfoundation.ua.core.BrowseDescription;
-import org.opcfoundation.ua.core.BrowseDirection;
-import org.opcfoundation.ua.core.BrowseResponse;
-import org.opcfoundation.ua.core.BrowseResultMask;
-import org.opcfoundation.ua.core.Identifiers;
-import org.opcfoundation.ua.core.NodeClass;
-import org.opcfoundation.ua.core.ReadResponse;
-import org.opcfoundation.ua.core.ReadValueId;
-import org.opcfoundation.ua.core.TimestampsToReturn;
-import org.opcfoundation.ua.transport.security.Cert;
-import org.opcfoundation.ua.transport.security.HttpsSecurityPolicy;
-import org.opcfoundation.ua.transport.security.KeyPair;
-import org.opcfoundation.ua.utils.CertificateUtils;
 import org.yamcs.ConfigurationException;
 import org.yamcs.Spec;
 import org.yamcs.Spec.OptionType;
@@ -117,43 +89,6 @@ import org.yamcs.yarch.YarchDatabaseInstance;
 
 public class OPCUALink extends AbstractLink
     implements Runnable, StreamSubscriber, SystemParametersProducer {
-
-  private static class MyValidationListener implements DefaultCertificateValidatorListener {
-
-    @Override
-    public ValidationResult onValidate(
-        Cert certificate,
-        ApplicationDescription applicationDescription,
-        EnumSet<CertificateCheck> passedChecks) {
-      System.out.println("Validating Server Certificate...");
-      if (passedChecks.containsAll(CertificateCheck.COMPULSORY)) {
-        System.out.println("Server Certificate is valid and trusted, accepting certificate!");
-        return ValidationResult.AcceptPermanently;
-      } else {
-        System.out.println("Certificate Details: " + certificate.getCertificate().toString());
-        System.out.println(
-            "Do you want to accept this certificate?\n" + " (A=Always, Y=Yes, this time, N=No)");
-        while (true) {
-          try {
-            char c;
-            c = Character.toLowerCase((char) System.in.read());
-            if (c == 'a') {
-              return ValidationResult.AcceptPermanently;
-            }
-            if (c == 'y') {
-              return ValidationResult.AcceptOnce;
-            }
-            if (c == 'n') {
-              return ValidationResult.Reject;
-            }
-          } catch (IOException e) {
-            System.out.println("Error reading input! Not accepting certificate.");
-            return ValidationResult.Reject;
-          }
-        }
-      }
-    }
-  }
   /* Configuration Defaults */
   static long POLLING_PERIOD_DEFAULT = 1000;
   static int INITIAL_DELAY_DEFAULT = -1;
@@ -319,6 +254,13 @@ public class OPCUALink extends AbstractLink
         1,
         1,
         TimeUnit.SECONDS);
+
+    try {
+      runOPCUClient();
+    } catch (Exception e) {
+      // TODO Auto-generated catch block
+      e.printStackTrace();
+    }
   }
 
   private static Stream getStream(YarchDatabaseInstance ydb, String streamName) {
@@ -368,12 +310,6 @@ public class OPCUALink extends AbstractLink
   @Override
   protected void doStart() {
     if (!isDisabled()) {
-      try {
-        initOPCUAConnection();
-      } catch (ServiceResultException e) {
-        // TODO Auto-generated catch block
-        e.printStackTrace();
-      }
       doEnable();
     }
     notifyStarted();
@@ -582,124 +518,7 @@ public class OPCUALink extends AbstractLink
     return r;
   }
 
-  private void initOPCUAConnection() throws ServiceResultException {
-    //	    if (args.length == 0) {
-    //	        System.out.println("Usage: SampleClient [server uri]");
-    //	        return;
-    //	      }
-    //	      String url = args[0];
-
-    //	  FIXME: url should be part of config in YAML
-    String url = "opc.tcp://0.0.0.0:4840/freeopcua/server/";
-    System.out.print("SampleClient: Connecting to " + url + " .. ");
-
-    System.out.println("**********************************1");
-
-    ////////////// CLIENT //////////////
-    // Create Client
-
-    // Set default key size for created certificates. The default value is also 2048,
-    // but in some cases you may want to specify a different size.
-    CertificateUtils.setKeySize(2048);
-
-    // Try to load an application certificate with the specified application name.
-    // In case it is not found, a new certificate is created.
-    final KeyPair pair = ExampleKeys.getCert("SampleClient");
-
-    // Create the client using information provided by the created certificate
-    final Client myClient = Client.createClientApplication(pair);
-
-    myClient.getApplication().addLocale(Locale.ENGLISH);
-    myClient
-        .getApplication()
-        .setApplicationName(new LocalizedText("Java Sample Client", Locale.ENGLISH));
-    myClient.getApplication().setProductUri("urn:JavaSampleClient");
-
-    System.out.println("**********************************2");
-
-    // Create a certificate store for handling server certificates.
-    // The constructor uses relative path "SampleClientPKI/CA" as the base directory, storing
-    // rejected certificates in folder "rejected" and trusted certificates in folder "trusted".
-    // To accept a server certificate, a rejected certificate needs to be moved from rejected to
-    // trusted folder. This can be performed by moving the certificate manually, using method
-    // addTrustedCertificate of PkiDirectoryCertificateStore or, as in this example, using a
-    // custom implementation of DefaultCertificateValidatorListener.
-    final PkiDirectoryCertificateStore myCertStore =
-        new PkiDirectoryCertificateStore("SampleClientPKI/CA");
-
-    // Create a default certificate validator for validating server certificates in the certificate
-    // store.
-    final DefaultCertificateValidator myValidator = new DefaultCertificateValidator(myCertStore);
-
-    // Set MyValidationListener instance as the ValidatorListener. In case a certificate is not
-    // automatically accepted, user can choose to reject or accept the certificate.
-    final MyValidationListener myValidationListener = new MyValidationListener();
-    myValidator.setValidationListener(myValidationListener);
-
-    // Set myValidator as the validator for OpcTcp and Https
-    myClient.getApplication().getOpctcpSettings().setCertificateValidator(myValidator);
-    myClient.getApplication().getHttpsSettings().setCertificateValidator(myValidator);
-
-    // The HTTPS SecurityPolicies are defined separate from the endpoint securities
-    myClient
-        .getApplication()
-        .getHttpsSettings()
-        .setHttpsSecurityPolicies(HttpsSecurityPolicy.ALL_104);
-
-    // The certificate to use for HTTPS
-    KeyPair myHttpsCertificate = ExampleKeys.getHttpsCert("SampleClient");
-    myClient.getApplication().getHttpsSettings().setKeyPair(myHttpsCertificate);
-
-    SessionChannel mySession = myClient.createSessionChannel(url);
-    // mySession.activate("username", "123");
-    mySession.activate();
-    //////////////////////////////////////
-
-    ///////////// EXECUTE //////////////
-    // Browse Root
-    BrowseDescription browse = new BrowseDescription();
-    browse.setNodeId(Identifiers.RootFolder);
-    browse.setBrowseDirection(BrowseDirection.Forward);
-    browse.setIncludeSubtypes(true);
-    browse.setNodeClassMask(NodeClass.Object, NodeClass.Variable);
-    browse.setResultMask(BrowseResultMask.All);
-    BrowseResponse res3 = mySession.Browse(null, null, null, browse);
-    System.out.println("**********************************3");
-    System.out.println(res3);
-
-    // Read Namespace Array
-    ReadResponse res5 =
-        mySession.Read(
-            null,
-            null,
-            TimestampsToReturn.Neither,
-            new ReadValueId(Identifiers.Server_NamespaceArray, Attributes.Value, null, null));
-    String[] namespaceArray = (String[]) res5.getResults()[0].getValue().getValue();
-    System.out.println("**********************************4");
-    System.out.println(Arrays.toString(namespaceArray));
-
-    // Read a variable (Works with NanoServer example!)
-    ReadResponse res4 =
-        mySession.Read(
-            null,
-            500.0,
-            TimestampsToReturn.Source,
-            new ReadValueId(new NodeId(1, "Boolean"), Attributes.Value, null, null));
-    System.out.println("**********************************5");
-    System.out.println(res4);
-
-    // Press enter to shutdown
-    System.out.println("Enter 'x' to shutdown");
-    //	      while (System.in.read() != 'x') {
-    //	        ;
-    //	      }
-
-    ///////////// SHUTDOWN /////////////
-    mySession.close();
-    mySession.closeAsync();
-    //////////////////////////////////////
-
-  }
+  private void initOPCUAConnection() {}
 
   public static ParameterValue getNewPv(Parameter parameter, long time) {
     ParameterValue pv = new ParameterValue(parameter);
@@ -803,15 +622,10 @@ public class OPCUALink extends AbstractLink
 
   }
 
-  //  @Override
-  //  public String getName() {
-  //    // TODO Auto-generated method stub
-  //    return null;
-  //  }
+  public void runOPCUClient() throws Exception {
 
-  //  @Override
-  //  public YConfiguration getConfig() {
-  //    // TODO Auto-generated method stub
-  //    return null;
-  //  }
+    BrowseExample example = new BrowseExample();
+
+    new ClientExampleRunner(example).run();
+  }
 }
