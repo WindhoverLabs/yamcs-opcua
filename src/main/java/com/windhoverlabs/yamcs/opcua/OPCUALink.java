@@ -33,19 +33,47 @@
 
 package com.windhoverlabs.yamcs.opcua;
 
+import static org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.uint;
+import static org.eclipse.milo.opcua.stack.core.util.ConversionUtil.toList;
+import static org.yamcs.xtce.NameDescription.qualifiedName;
+
 import com.google.common.io.BaseEncoding;
+import java.io.File;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.Charset;
 import java.nio.charset.UnsupportedCharsetException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
+import org.eclipse.milo.opcua.sdk.client.OpcUaClient;
+import org.eclipse.milo.opcua.sdk.client.api.config.OpcUaClientConfig;
+import org.eclipse.milo.opcua.sdk.client.nodes.UaNode;
+import org.eclipse.milo.opcua.stack.client.DiscoveryClient;
+import org.eclipse.milo.opcua.stack.core.AttributeId;
+import org.eclipse.milo.opcua.stack.core.Identifiers;
+import org.eclipse.milo.opcua.stack.core.UaException;
+import org.eclipse.milo.opcua.stack.core.security.DefaultTrustListManager;
+import org.eclipse.milo.opcua.stack.core.types.builtin.DataValue;
+import org.eclipse.milo.opcua.stack.core.types.builtin.NodeId;
+import org.eclipse.milo.opcua.stack.core.types.enumerated.BrowseDirection;
+import org.eclipse.milo.opcua.stack.core.types.enumerated.BrowseResultMask;
+import org.eclipse.milo.opcua.stack.core.types.enumerated.NodeClass;
+import org.eclipse.milo.opcua.stack.core.types.structured.BrowseDescription;
+import org.eclipse.milo.opcua.stack.core.types.structured.BrowseResult;
+import org.eclipse.milo.opcua.stack.core.types.structured.EndpointDescription;
+import org.eclipse.milo.opcua.stack.core.types.structured.ReferenceDescription;
+import org.slf4j.LoggerFactory;
 import org.yamcs.ConfigurationException;
 import org.yamcs.Spec;
 import org.yamcs.Spec.OptionType;
@@ -65,12 +93,14 @@ import org.yamcs.tctm.PacketInputStream;
 import org.yamcs.tctm.ParameterSink;
 import org.yamcs.utils.ValueUtility;
 import org.yamcs.xtce.AbsoluteTimeParameterType;
+import org.yamcs.xtce.AggregateParameterType;
 import org.yamcs.xtce.BaseDataType;
 import org.yamcs.xtce.BinaryParameterType;
 import org.yamcs.xtce.BooleanParameterType;
 import org.yamcs.xtce.EnumeratedParameterType;
 import org.yamcs.xtce.FloatParameterType;
 import org.yamcs.xtce.IntegerParameterType;
+import org.yamcs.xtce.Member;
 import org.yamcs.xtce.NameDescription;
 import org.yamcs.xtce.Parameter;
 import org.yamcs.xtce.ParameterType;
@@ -155,6 +185,8 @@ public class OPCUALink extends AbstractLink
   //  inside org.yamcs.parameter.ParameterRequestManager.param2RequestMap since the object hashes
   //  do not match (since VariableParam does not override its hash function).
   private VariableParam p;
+
+  private DefaultTrustListManager trustListManager;
 
   @Override
   public Spec getSpec() {
@@ -620,10 +652,186 @@ public class OPCUALink extends AbstractLink
 
   }
 
+  private OpcUaClient createClient() throws Exception {
+    Path securityTempDir = Paths.get(System.getProperty("java.io.tmpdir"), "client", "security");
+    Files.createDirectories(securityTempDir);
+    if (!Files.exists(securityTempDir)) {
+      throw new Exception("unable to create security dir: " + securityTempDir);
+    }
+
+    File pkiDir = securityTempDir.resolve("pki").toFile();
+
+    LoggerFactory.getLogger(getClass()).info("security dir: {}", securityTempDir.toAbsolutePath());
+    LoggerFactory.getLogger(getClass()).info("security pki dir: {}", pkiDir.getAbsolutePath());
+
+    trustListManager = new DefaultTrustListManager(pkiDir);
+
+    List<EndpointDescription> endpoint =
+        DiscoveryClient.getEndpoints("opc.tcp://localhost:4840/").get();
+
+    OpcUaClientConfig builder = OpcUaClientConfig.builder().setEndpoint(endpoint.get(0)).build();
+
+    return OpcUaClient.create(builder);
+  }
+
+  private void browseNode(String indent, OpcUaClient client, NodeId browseRoot) {
+    BrowseDescription browse =
+        new BrowseDescription(
+            browseRoot,
+            BrowseDirection.Forward,
+            Identifiers.References,
+            true,
+            uint(NodeClass.Object.getValue() | NodeClass.Variable.getValue()),
+            uint(BrowseResultMask.All.getValue()));
+
+    try {
+      BrowseResult browseResult = client.browse(browse).get();
+
+      List<ReferenceDescription> references = toList(browseResult.getReferences());
+
+      for (ReferenceDescription rd : references) {
+        Object desc = null;
+        Object value = null;
+        try {
+          UaNode node =
+              client
+                  .getAddressSpace()
+                  .getNode(rd.getNodeId().toNodeId(client.getNamespaceTable()).get());
+          DataValue attr = node.readAttribute(AttributeId.Description);
+          desc = attr.getValue().getValue();
+
+          attr = node.readAttribute(AttributeId.Value);
+
+          value = attr.getValue();
+        } catch (UaException e) {
+          // TODO Auto-generated catch block
+          e.printStackTrace();
+        }
+        log.info(
+            "{} Node={}, Desc={}, Value={}", indent, rd.getBrowseName().getName(), desc, value);
+        //
+        //        System.out.println("Node:" + rd.getBrowseName().getName());
+        //        rd.getTypeId();
+        //        for()
+        {
+        }
+
+        // recursively browse to children
+        rd.getNodeId()
+            .toNodeId(client.getNamespaceTable())
+            .ifPresent(nodeId -> browseNode(indent + "  ", client, nodeId));
+      }
+    } catch (InterruptedException | ExecutionException e) {
+      log.error("Browsing nodeId={} failed: {}", browseRoot, e.getMessage(), e);
+    }
+  }
+
+  public void connectToOPCUAServer(OpcUaClient client, CompletableFuture<OpcUaClient> future)
+      throws Exception {
+    // synchronous connect
+    System.out.println();
+    client.connect().get();
+
+    // start browsing at root folder
+    browseNode("", client, Identifiers.RootFolder);
+
+    future.complete(client);
+  }
+
+  public void runOPCUAClient() {
+
+    final CompletableFuture<OpcUaClient> future = new CompletableFuture<>();
+
+    OpcUaClient client = null;
+    try {
+      client = createClient();
+    } catch (Exception e) {
+      // TODO Auto-generated catch block
+      e.printStackTrace();
+    }
+    try {
+      connectToOPCUAServer(client, future);
+    } catch (Exception e) {
+      // TODO Auto-generated catch block
+      e.printStackTrace();
+    }
+    //    try {
+    //
+    //
+    //
+    //      future.whenCompleteAsync(
+    //          (c, ex) -> {
+    //            if (ex != null) {
+    //              log.error("Error running example: {}", ex.getMessage(), ex);
+    //            }
+    //
+    //            try {
+    //              client.disconnect().get();
+    //              Stack.releaseSharedResources();
+    //            } catch (InterruptedException | ExecutionException e) {
+    //              log.error("Error disconnecting: {}", e.getMessage(), e);
+    //            }
+    //
+    //            try {
+    //              Thread.sleep(1000);
+    //              System.out.println("exit***1");
+    //              //              System.exit(0);
+    //            } catch (InterruptedException e) {
+    //              e.printStackTrace();
+    //            }
+    //          });
+    //
+    //      try {
+    //        connectToOPCUAServer(client, future);
+    //        future.get(15, TimeUnit.SECONDS);
+    //      } catch (Throwable t) {
+    //        log.error("Error running client example: {}", t.getMessage(), t);
+    //        future.completeExceptionally(t);
+    //      }
+    //    } catch (Throwable t) {
+    //      log.error("Error getting client: {}", t.getMessage(), t);
+    //
+    //      future.completeExceptionally(t);
+    //
+    //      try {
+    //        Thread.sleep(1000);
+    //        System.exit(0);
+    //        System.out.println("exit***2");
+    //      } catch (InterruptedException e) {
+    //        e.printStackTrace();
+    //      }
+    //    }
+    //
+    //    try {
+    //      Thread.sleep(999_999_999);
+    //    } catch (InterruptedException e) {
+    //      e.printStackTrace();
+    //    }
+  }
+
   public void runOPCUClient() throws Exception {
 
-    BrowseExample example = new BrowseExample();
+    AttributeId.Value.toString();
+    Member browseName =
+        new Member(AttributeId.BrowseName.toString(), getBasicType(mdb, Type.STRING, null));
+    Member description =
+        new Member(AttributeId.Description.toString(), getBasicType(mdb, Type.STRING, null));
 
-    new ClientExampleRunner(example).run();
+    AggregateParameterType opcuaAttrsType =
+        new AggregateParameterType.Builder()
+            .setName("OPCUObjectAttributes")
+            .addMember(browseName)
+            .addMember(description)
+            .build();
+    ((NameDescription) opcuaAttrsType)
+        .setQualifiedName(qualifiedName(namespace, opcuaAttrsType.getName()));
+    mdb.addParameterType(opcuaAttrsType, true);
+
+    Parameter p = VariableParam.getForFullyQualifiedName(qualifiedName(namespace, "HelloNode"));
+
+    p.setParameterType(opcuaAttrsType);
+
+    mdb.addParameter(p, true);
+    runOPCUAClient();
   }
 }

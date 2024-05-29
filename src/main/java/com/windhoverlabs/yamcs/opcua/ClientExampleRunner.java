@@ -23,7 +23,6 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.eclipse.milo.opcua.sdk.client.OpcUaClient;
 import org.eclipse.milo.opcua.sdk.client.api.config.OpcUaClientConfig;
 import org.eclipse.milo.opcua.stack.client.DiscoveryClient;
-import org.eclipse.milo.opcua.stack.client.security.DefaultClientCertificateValidator;
 import org.eclipse.milo.opcua.stack.core.Stack;
 import org.eclipse.milo.opcua.stack.core.security.DefaultTrustListManager;
 import org.eclipse.milo.opcua.stack.core.types.structured.EndpointDescription;
@@ -41,13 +40,9 @@ public class ClientExampleRunner {
 
   private final CompletableFuture<OpcUaClient> future = new CompletableFuture<>();
 
-  //    TODO:Might be useful for unit testing. See org.eclipse.milo.examples.server.ExampleServer
-  //    private ExampleServer exampleServer;
-
   private DefaultTrustListManager trustListManager;
 
   private final ClientExample clientExample;
-  private final boolean serverRequired;
 
   public ClientExampleRunner(ClientExample clientExample) throws Exception {
     this(clientExample, true);
@@ -55,14 +50,6 @@ public class ClientExampleRunner {
 
   public ClientExampleRunner(ClientExample clientExample, boolean serverRequired) throws Exception {
     this.clientExample = clientExample;
-    this.serverRequired = serverRequired;
-
-    if (serverRequired) {
-      //          TODO:Might be useful for unit testing. See
-      // org.eclipse.milo.examples.server.ExampleServer
-      //            exampleServer = new ExampleServer();
-      //            exampleServer.startup().get();
-    }
   }
 
   private OpcUaClient createClient() throws Exception {
@@ -77,14 +64,7 @@ public class ClientExampleRunner {
     LoggerFactory.getLogger(getClass()).info("security dir: {}", securityTempDir.toAbsolutePath());
     LoggerFactory.getLogger(getClass()).info("security pki dir: {}", pkiDir.getAbsolutePath());
 
-    //        KeyStoreLoader loader = new KeyStoreLoader().load(securityTempDir);
-
     trustListManager = new DefaultTrustListManager(pkiDir);
-
-    DefaultClientCertificateValidator certificateValidator =
-        new DefaultClientCertificateValidator(trustListManager);
-
-    System.out.println("clientExample.getEndpointUrl()-->" + clientExample.getEndpointUrl());
 
     List<EndpointDescription> endpoint =
         DiscoveryClient.getEndpoints(clientExample.getEndpointUrl()).get();
@@ -92,56 +72,11 @@ public class ClientExampleRunner {
     OpcUaClientConfig builder = OpcUaClientConfig.builder().setEndpoint(endpoint.get(0)).build();
 
     return OpcUaClient.create(builder);
-    //        return OpcUaClient.create(
-    //            clientExample.getEndpointUrl(),
-    //            endpoints ->
-    //                endpoints.stream()
-    //                    .filter(clientExample.endpointFilter())
-    //                    .findFirst(),
-    //            configBuilder ->
-    //                configBuilder
-    //                    .setApplicationName(LocalizedText.english("eclipse milo opc-ua client"))
-    //                    .setApplicationUri("urn:eclipse:milo:examples:client")
-    //                    .setKeyPair(loader.getClientKeyPair())
-    //                    .setCertificate(loader.getClientCertificate())
-    //                    .setCertificateChain(loader.getClientCertificateChain())
-    //                    .setCertificateValidator(certificateValidator)
-    //                    .setIdentityProvider(clientExample.getIdentityProvider())
-    //                    .setRequestTimeout(uint(5000))
-    //                    .build()
-    //        );
   }
 
   public void run() {
     try {
       OpcUaClient client = createClient();
-
-      //          TODO:Might be useful for unit testing. See
-      // org.eclipse.milo.examples.server.ExampleServer
-      if (serverRequired) {
-        // For the sake of the examples we will create mutual trust between the client and
-        // server, so we can run them with security enabled by default.
-        // If the client example is pointed at another server then the rejected certificate
-        // will need to be moved from the security "pki/rejected" directory to the
-        // "pki/trusted/certs" directory.
-
-        // Make the example server trust the example client certificate by default.
-        //              TODO:Might be useful for unit testing. See
-        // org.eclipse.milo.examples.server.ExampleServer
-        //                client.getConfig().getCertificate().ifPresent(
-        //                    certificate ->
-        //
-        // exampleServer.getServer().getConfig().getTrustListManager().addTrustedCertificate(certificate)
-        //                );
-        //
-        //                // Make the example client trust the example server certificate by
-        // default.
-        //
-        // exampleServer.getServer().getConfig().getCertificateManager().getCertificates().forEach(
-        //                    certificate ->
-        //                        trustListManager.addTrustedCertificate(certificate)
-        //                );
-      }
 
       future.whenCompleteAsync(
           (c, ex) -> {
@@ -151,9 +86,6 @@ public class ClientExampleRunner {
 
             try {
               client.disconnect().get();
-              //                    if (serverRequired && exampleServer != null) {
-              //                        exampleServer.shutdown().get();
-              //                    }
               Stack.releaseSharedResources();
             } catch (InterruptedException | ExecutionException e) {
               logger.error("Error disconnecting: {}", e.getMessage(), e);
