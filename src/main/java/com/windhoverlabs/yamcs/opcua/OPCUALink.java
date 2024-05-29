@@ -33,7 +33,6 @@
 
 package com.windhoverlabs.yamcs.opcua;
 
-
 import com.google.common.io.BaseEncoding;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -238,7 +237,6 @@ public class OPCUALink extends AbstractLink
 
     namespace = "/instruments/tvac";
 
-    //    VariableParam p = new VariableParam("hello1");
     p = VariableParam.getForFullyQualifiedName("/instruments/tvac/hello1");
 
     ParameterType ptype = getBasicType(mdb, Yamcs.Value.Type.SINT64, null);

@@ -17,7 +17,11 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import org.eclipse.milo.opcua.sdk.client.OpcUaClient;
+import org.eclipse.milo.opcua.sdk.client.nodes.UaNode;
+import org.eclipse.milo.opcua.stack.core.AttributeId;
 import org.eclipse.milo.opcua.stack.core.Identifiers;
+import org.eclipse.milo.opcua.stack.core.UaException;
+import org.eclipse.milo.opcua.stack.core.types.builtin.DataValue;
 import org.eclipse.milo.opcua.stack.core.types.builtin.NodeId;
 import org.eclipse.milo.opcua.stack.core.types.enumerated.BrowseDirection;
 import org.eclipse.milo.opcua.stack.core.types.enumerated.BrowseResultMask;
@@ -29,12 +33,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class BrowseExample implements ClientExample {
-
-  public static void main(String[] args) throws Exception {
-    BrowseExample example = new BrowseExample();
-
-    new ClientExampleRunner(example).run();
-  }
 
   private final Logger logger = LoggerFactory.getLogger(getClass());
 
@@ -65,7 +63,30 @@ public class BrowseExample implements ClientExample {
       List<ReferenceDescription> references = toList(browseResult.getReferences());
 
       for (ReferenceDescription rd : references) {
-        logger.info("{} Node={}", indent, rd.getBrowseName().getName());
+        Object desc = null;
+        Object value = null;
+        try {
+          UaNode node =
+              client
+                  .getAddressSpace()
+                  .getNode(rd.getNodeId().toNodeId(client.getNamespaceTable()).get());
+          DataValue attr = node.readAttribute(AttributeId.Description);
+          desc = attr.getValue().getValue();
+
+          attr = node.readAttribute(AttributeId.Value);
+
+          value = attr.getValue();
+        } catch (UaException e) {
+          // TODO Auto-generated catch block
+          e.printStackTrace();
+        }
+        logger.info(
+            "{} Node={}, Desc={}, Value={}", indent, rd.getBrowseName().getName(), desc, value);
+
+        //        rd.getTypeId();
+        //        for()
+        {
+        }
 
         // recursively browse to children
         rd.getNodeId()
