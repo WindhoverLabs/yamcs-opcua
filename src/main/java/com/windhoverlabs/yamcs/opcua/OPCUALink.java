@@ -40,7 +40,6 @@ import static org.yamcs.xtce.NameDescription.qualifiedName;
 import com.google.common.io.BaseEncoding;
 import java.io.File;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.nio.charset.Charset;
 import java.nio.charset.UnsupportedCharsetException;
 import java.nio.file.Files;
@@ -48,6 +47,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
@@ -87,7 +87,6 @@ import org.yamcs.parameter.ParameterValue;
 import org.yamcs.parameter.SystemParametersProducer;
 import org.yamcs.parameter.SystemParametersService;
 import org.yamcs.parameter.Value;
-import org.yamcs.protobuf.Event;
 import org.yamcs.protobuf.Yamcs;
 import org.yamcs.protobuf.Yamcs.Value.Type;
 import org.yamcs.tctm.AbstractLink;
@@ -121,17 +120,9 @@ import org.yamcs.yarch.YarchDatabaseInstance;
 public class OPCUALink extends AbstractLink
     implements Runnable, StreamSubscriber, SystemParametersProducer {
   /* Configuration Defaults */
-  static long POLLING_PERIOD_DEFAULT = 1000;
-  static int INITIAL_DELAY_DEFAULT = -1;
-  static boolean IGNORE_INITIAL_DEFAULT = true;
-  static boolean CLEAR_BUCKETS_AT_STARTUP_DEFAULT = false;
-  static boolean DELETE_FILE_AFTER_PROCESSING_DEFAULT = false;
+  static final String STREAM_NAME = "opcua_params";
 
-  private Parameter outOfSyncParam;
-  private Parameter streamEventCountParam;
-  private Parameter logEventCountParam;
-  private int streamEventCount;
-  private int logEventCount;
+  private Parameter OPCUAServerStatus;
 
   /* Configuration Parameters */
   protected long initialDelay;
@@ -162,8 +153,6 @@ public class OPCUALink extends AbstractLink
 
   private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
-  private ByteOrder byteOrder;
-
   Integer appNameMax;
   Integer eventMsgMax;
 
@@ -171,8 +160,6 @@ public class OPCUALink extends AbstractLink
   private String namespace;
   private String serverId;
   XtceDb mdb;
-
-  static final String STREAM_NAME = "opcua_params";
 
   Stream opcuaStream;
 
@@ -192,6 +179,8 @@ public class OPCUALink extends AbstractLink
   private AggregateParameterType opcuaAttrsType;
   private ManagedSubscription opcuaSubscription;
 
+  private HashMap<NodeId, VariableParam> nodeIDToParamsMap = new HashMap<NodeId, VariableParam>();
+
   @Override
   public Spec getSpec() {
     Spec spec = new Spec();
@@ -201,16 +190,6 @@ public class OPCUALink extends AbstractLink
     spec.addOption("name", OptionType.STRING).withRequired(true);
     spec.addOption("class", OptionType.STRING).withRequired(true);
     spec.addOption("opcua_stream", OptionType.STRING).withRequired(true);
-    //
-    //    spec.addOption("packetInputStreamClassName", OptionType.STRING).withRequired(false);
-    //    spec.addOption("packetPreprocessorClassName", OptionType.STRING).withRequired(true);
-    //    /* Set the preprocessor argument config parameters to "allowUnknownKeys".  We don't know
-    //    or care what
-    //        * these parameters are.  Let the preprocessor define them. */
-    //    preprocessorSpec.allowUnknownKeys(true);
-    //    spec.addOption("packetPreprocessorArgs", OptionType.MAP)
-    //        .withRequired(true)
-    //        .withSpec(preprocessorSpec);
 
     return spec;
   }
@@ -228,29 +207,6 @@ public class OPCUALink extends AbstractLink
     } catch (ValidationException e) {
       log.error("Failed configuration validation.", e);
     }
-    streamEventCount = 0;
-
-    /* Now get the packet input stream processor class name.  This is optional, so
-     * if its not provided, use the CcsdsPacketInputStream as default. */
-    //    if (config.containsKey("packetInputStreamClassName")) {
-    //      packetInputStreamClassName = config.getString("packetInputStreamClassName");
-    //      if (config.containsKey("packetInputStreamArgs")) {
-    //        packetInputStreamArgs = config.getConfig("packetInputStreamArgs");
-    //      } else {
-    //        packetInputStreamArgs = YConfiguration.emptyConfig();
-    //      }
-    //    } else {
-    //      packetInputStreamClassName = CcsdsPacketInputStream.class.getName();
-    //      packetInputStreamArgs = YConfiguration.emptyConfig();
-    //    }
-
-    /* Now create the packet input stream process */
-    //    try {
-    //      packetInputStream = YObjectLoader.loadObject(packetInputStreamClassName);
-    //    } catch (ConfigurationException e) {
-    //      log.error("Cannot instantiate the packetInput stream", e);
-    //      throw e;
-    //    }
 
     String chrname = config.getString("charset", "US-ASCII");
     try {
@@ -484,32 +440,16 @@ public class OPCUALink extends AbstractLink
   }
 
   @Override
-  public void onTuple(Stream stream, Tuple tuple) {
-    if (isRunningAndEnabled()) {
-      Event event = (Event) tuple.getColumn("body");
-      //      updateStats(event.getMessage().length());
-      streamEventCount++;
-    }
-  }
+  public void onTuple(Stream stream, Tuple tuple) {}
 
   @Override
   public void setupSystemParameters(SystemParametersService sysParamCollector) {
     super.setupSystemParameters(sysParamCollector);
-    outOfSyncParam =
+    OPCUAServerStatus =
         sysParamCollector.createSystemParameter(
             linkName + "/outOfSync",
             Yamcs.Value.Type.BOOLEAN,
             "Are the downlinked events not in sync wtih the ones from the log?");
-    streamEventCountParam =
-        sysParamCollector.createSystemParameter(
-            linkName + "/streamEventCountParam",
-            Yamcs.Value.Type.UINT64,
-            "Event count in realtime event stream");
-    logEventCountParam =
-        sysParamCollector.createSystemParameter(
-            linkName + "/logEventCountParam",
-            Yamcs.Value.Type.UINT64,
-            "Event count from log files");
   }
 
   @Override
@@ -528,9 +468,8 @@ public class OPCUALink extends AbstractLink
   @Override
   protected void collectSystemParameters(long time, List<ParameterValue> list) {
     super.collectSystemParameters(time, list);
-    //    list.add(SystemParametersService.getPV(outOfSyncParam, time, outOfSync));
-    //    list.add(SystemParametersService.getPV(streamEventCountParam, time, streamEventCount));
-    //    list.add(SystemParametersService.getPV(logEventCountParam, time, logEventCount));
+    //    FIXME
+    //    list.add(SystemParametersService.getPV(OPCUAServerStatus, time, outOfSync));
   }
 
   private String decodeString(ByteBuffer buf, int maxLength) {
@@ -551,8 +490,6 @@ public class OPCUALink extends AbstractLink
 
     return r;
   }
-
-  private void initOPCUAConnection() {}
 
   public static ParameterValue getNewPv(Parameter parameter, long time) {
     ParameterValue pv = new ParameterValue(parameter);
@@ -608,11 +545,6 @@ public class OPCUALink extends AbstractLink
     pv.setEngValue(v);
     return pv;
   }
-
-  //  @Override
-  //  public void setParameterSink(ParameterSink parameterSink) {
-  //    this.paraSink = parameterSink;
-  //  }
 
   @Override
   public Status getLinkStatus() {
@@ -702,6 +634,33 @@ public class OPCUALink extends AbstractLink
                 "subscription value received: item={}, value={}",
                 items.get(i).getNodeId(),
                 values.get(i).getValue());
+
+            log.info(
+                "Pushing new PV for param name {} which is mapped to NodeID {}",
+                nodeIDToParamsMap.get(items.get(i).getNodeId()),
+                items.get(i).getNodeId());
+
+            TupleDefinition tdef = gftdef.copy();
+            List<Object> cols = new ArrayList<>(4 + 1);
+            long gentime = timeService.getMissionTime();
+            cols.add(gentime);
+            cols.add(namespace);
+            cols.add(0);
+            cols.add(gentime);
+
+            tdef.addColumn(
+                nodeIDToParamsMap.get(items.get(i).getNodeId()).getQualifiedName(),
+                DataType.PARAMETER_VALUE);
+
+            cols.add(
+                getPV(
+                    nodeIDToParamsMap.get(items.get(i).getNodeId()),
+                    Instant.now().toEpochMilli(),
+                    values.get(i).getValue().toString()));
+
+            Tuple t = new Tuple(tdef, cols);
+
+            opcuaStream.emitTuple(t);
           }
         });
 
@@ -724,7 +683,6 @@ public class OPCUALink extends AbstractLink
           attr = node.readAttribute(AttributeId.Value);
 
           value = attr.getValue();
-          //          attr.`
         } catch (UaException e) {
           // TODO Auto-generated catch block
           e.printStackTrace();
@@ -755,6 +713,9 @@ public class OPCUALink extends AbstractLink
             log.info("Adding OPCUA object as parameter to mdb:{}", p.getQualifiedName());
             mdb.addParameter(p, true);
 
+            nodeIDToParamsMap.put(
+                rd.getNodeId().toNodeId(client.getNamespaceTable()).get(), (VariableParam) p);
+
             try {
               ManagedDataItem dataItem =
                   opcuaSubscription.createDataItem(
@@ -763,18 +724,11 @@ public class OPCUALink extends AbstractLink
               // TODO Auto-generated catch block
               e.printStackTrace();
             }
-
-            //            client.createSubscription(DS_TOTAL_FNAME_BUFSIZE, null, null, null,
-            // CLEAR_BUCKETS_AT_STARTUP_DEFAULT, null)
           }
         }
 
         log.debug(
             "{} Node={}, Desc={}, Value={}", indent, rd.getBrowseName().getName(), desc, value);
-        //
-        //        System.out.println("Node:" + rd.getBrowseName().getName());
-        //        rd.getTypeId();
-        //        for()
         {
         }
 
@@ -795,9 +749,6 @@ public class OPCUALink extends AbstractLink
 
     // start browsing at root folder
     browseNode("", client, Identifiers.RootFolder);
-
-    //    ManagedDataItem dataItem =
-    //        opcuaSubscription.createDataItem(Identifiers.Server_ServerStatus_CurrentTime);
 
     future.complete(client);
   }
@@ -828,12 +779,6 @@ public class OPCUALink extends AbstractLink
 
     createOPCUAAttrAggregateType();
     mdb.addParameterType(opcuaAttrsType, true);
-
-    Parameter p = VariableParam.getForFullyQualifiedName(qualifiedName(namespace, "HelloNode"));
-
-    p.setParameterType(opcuaAttrsType);
-
-    mdb.addParameter(p, true);
     runOPCUAClient();
   }
 
