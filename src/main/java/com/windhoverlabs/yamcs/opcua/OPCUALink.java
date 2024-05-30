@@ -630,12 +630,12 @@ public class OPCUALink extends AbstractLink
     opcuaSubscription.addDataChangeListener(
         (items, values) -> {
           for (int i = 0; i < items.size(); i++) {
-            log.info(
+            log.debug(
                 "subscription value received: item={}, value={}",
                 items.get(i).getNodeId(),
                 values.get(i).getValue());
 
-            log.info(
+            log.debug(
                 "Pushing new PV for param name {} which is mapped to NodeID {}",
                 nodeIDToParamsMap.get(items.get(i).getNodeId()),
                 items.get(i).getNodeId());
@@ -647,6 +647,34 @@ public class OPCUALink extends AbstractLink
             cols.add(namespace);
             cols.add(0);
             cols.add(gentime);
+
+            /**
+             * TODO:Not sure if this is the best way to do this since the aggregate values will be
+             * partially updated. Another potential approach might be to decouple the live OPCUA
+             * data(subscriptions) via namespaces. For example; have a "special" namespace called
+             * "subscriptions" that ONLY gets updated with items. And maybe another namespace for
+             * static data...maybe.
+             *
+             * <p>Another option is to flatten everything and have no aggregate types at all. That
+             * approach might even simplify the code quite a bit...
+             *
+             * <p>Another question worth answering before moving forward is to find whether or not
+             * it is concrete in the OPCUA protocol what data can change in real time and which data
+             * is "static". Not sure if there is any "static" data given that clients have the
+             * ability of writing to values... might be worth a test.
+             */
+
+            // FIMXE:Properly add aggregatevalues instead of getPV flat values
+            //            AggregateValue v = new AggregateValue(fileStoreAggrType.getMemberNames());
+            //            v.setMemberValue("total", ValueUtility.getSint64Value(ts / 1024));
+            //            v.setMemberValue("available", ValueUtility.getSint64Value(av / 1024));
+            //            v.setMemberValue("percentageUse", ValueUtility.getFloatValue(perc));
+            //
+            //            ParameterValue pv = new ParameterValue(storep.param);
+            //            pv.setGenerationTime(gentime);
+            //            pv.setAcquisitionTime(gentime);
+            //            pv.setAcquisitionStatus(AcquisitionStatus.ACQUIRED);
+            //            pv.setEngValue(v);
 
             tdef.addColumn(
                 nodeIDToParamsMap.get(items.get(i).getNodeId()).getQualifiedName(),
@@ -683,6 +711,7 @@ public class OPCUALink extends AbstractLink
           attr = node.readAttribute(AttributeId.Value);
 
           value = attr.getValue();
+
         } catch (UaException e) {
           // TODO Auto-generated catch block
           e.printStackTrace();
@@ -703,7 +732,11 @@ public class OPCUALink extends AbstractLink
           Parameter p =
               VariableParam.getForFullyQualifiedName(
                   qualifiedName(
-                      namespace + NameDescription.PATH_SEPARATOR + rd.getBrowseName().getName(),
+                      namespace
+                          + NameDescription.PATH_SEPARATOR
+                          + rd.getBrowseName().getName()
+                          + NameDescription.PATH_SEPARATOR
+                          + rd.getNodeId(),
                       rd.getBrowseName().getName()));
 
           p.setParameterType(opcuaAttrsType);
@@ -715,6 +748,31 @@ public class OPCUALink extends AbstractLink
 
             nodeIDToParamsMap.put(
                 rd.getNodeId().toNodeId(client.getNamespaceTable()).get(), (VariableParam) p);
+
+            TupleDefinition tdef = gftdef.copy();
+            List<Object> cols = new ArrayList<>(4 + 1);
+            long gentime = timeService.getMissionTime();
+            cols.add(gentime);
+            cols.add(namespace);
+            cols.add(0);
+            cols.add(gentime);
+
+            tdef.addColumn(
+                nodeIDToParamsMap
+                    .get(rd.getNodeId().toNodeId(client.getNamespaceTable()).get())
+                    .getQualifiedName(),
+                DataType.PARAMETER_VALUE);
+
+            cols.add(
+                getPV(
+                    nodeIDToParamsMap.get(
+                        rd.getNodeId().toNodeId(client.getNamespaceTable()).get()),
+                    Instant.now().toEpochMilli(),
+                    "PlaceHolder"));
+
+            Tuple t = new Tuple(tdef, cols);
+
+            opcuaStream.emitTuple(t);
 
             try {
               ManagedDataItem dataItem =
