@@ -187,6 +187,7 @@ public class OPCUALink extends AbstractLink
   private VariableParam p;
 
   private DefaultTrustListManager trustListManager;
+  private AggregateParameterType opcuaAttrsType;
 
   @Override
   public Spec getSpec() {
@@ -707,7 +708,7 @@ public class OPCUALink extends AbstractLink
           // TODO Auto-generated catch block
           e.printStackTrace();
         }
-        log.info(
+        log.debug(
             "{} Node={}, Desc={}, Value={}", indent, rd.getBrowseName().getName(), desc, value);
         //
         //        System.out.println("Node:" + rd.getBrowseName().getName());
@@ -751,73 +752,23 @@ public class OPCUALink extends AbstractLink
     }
     try {
       connectToOPCUAServer(client, future);
+
+      //                        client.disconnect().get();
+      //      Stack.releaseSharedResources();
     } catch (Exception e) {
       // TODO Auto-generated catch block
       e.printStackTrace();
     }
-    //    try {
-    //
-    //
-    //
-    //      future.whenCompleteAsync(
-    //          (c, ex) -> {
-    //            if (ex != null) {
-    //              log.error("Error running example: {}", ex.getMessage(), ex);
-    //            }
-    //
-    //            try {
-    //              client.disconnect().get();
-    //              Stack.releaseSharedResources();
-    //            } catch (InterruptedException | ExecutionException e) {
-    //              log.error("Error disconnecting: {}", e.getMessage(), e);
-    //            }
-    //
-    //            try {
-    //              Thread.sleep(1000);
-    //              System.out.println("exit***1");
-    //              //              System.exit(0);
-    //            } catch (InterruptedException e) {
-    //              e.printStackTrace();
-    //            }
-    //          });
-    //
-    //      try {
-    //        connectToOPCUAServer(client, future);
-    //        future.get(15, TimeUnit.SECONDS);
-    //      } catch (Throwable t) {
-    //        log.error("Error running client example: {}", t.getMessage(), t);
-    //        future.completeExceptionally(t);
-    //      }
-    //    } catch (Throwable t) {
-    //      log.error("Error getting client: {}", t.getMessage(), t);
-    //
-    //      future.completeExceptionally(t);
-    //
-    //      try {
-    //        Thread.sleep(1000);
-    //        System.exit(0);
-    //        System.out.println("exit***2");
-    //      } catch (InterruptedException e) {
-    //        e.printStackTrace();
-    //      }
-    //    }
-    //
-    //    try {
-    //      Thread.sleep(999_999_999);
-    //    } catch (InterruptedException e) {
-    //      e.printStackTrace();
-    //    }
   }
 
   public void runOPCUClient() throws Exception {
 
-    AttributeId.Value.toString();
     Member browseName =
         new Member(AttributeId.BrowseName.toString(), getBasicType(mdb, Type.STRING, null));
     Member description =
         new Member(AttributeId.Description.toString(), getBasicType(mdb, Type.STRING, null));
 
-    AggregateParameterType opcuaAttrsType =
+    opcuaAttrsType =
         new AggregateParameterType.Builder()
             .setName("OPCUObjectAttributes")
             .addMember(browseName)
