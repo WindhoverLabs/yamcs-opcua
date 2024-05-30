@@ -59,6 +59,8 @@ import java.util.function.Supplier;
 import org.eclipse.milo.opcua.sdk.client.OpcUaClient;
 import org.eclipse.milo.opcua.sdk.client.api.config.OpcUaClientConfig;
 import org.eclipse.milo.opcua.sdk.client.nodes.UaNode;
+import org.eclipse.milo.opcua.sdk.client.subscriptions.ManagedDataItem;
+import org.eclipse.milo.opcua.sdk.client.subscriptions.ManagedSubscription;
 import org.eclipse.milo.opcua.stack.client.DiscoveryClient;
 import org.eclipse.milo.opcua.stack.core.AttributeId;
 import org.eclipse.milo.opcua.stack.core.Identifiers;
@@ -188,6 +190,7 @@ public class OPCUALink extends AbstractLink
 
   private DefaultTrustListManager trustListManager;
   private AggregateParameterType opcuaAttrsType;
+  private ManagedSubscription opcuaSubscription;
 
   @Override
   public Spec getSpec() {
@@ -686,6 +689,23 @@ public class OPCUALink extends AbstractLink
             uint(BrowseResultMask.All.getValue()));
 
     try {
+      opcuaSubscription = ManagedSubscription.create(client, 0);
+    } catch (UaException e) {
+      // TODO Auto-generated catch block
+      e.printStackTrace();
+    }
+
+    opcuaSubscription.addDataChangeListener(
+        (items, values) -> {
+          for (int i = 0; i < items.size(); i++) {
+            log.info(
+                "subscription value received: item={}, value={}",
+                items.get(i).getNodeId(),
+                values.get(i).getValue());
+          }
+        });
+
+    try {
       BrowseResult browseResult = client.browse(browse).get();
 
       List<ReferenceDescription> references = toList(browseResult.getReferences());
@@ -704,10 +724,51 @@ public class OPCUALink extends AbstractLink
           attr = node.readAttribute(AttributeId.Value);
 
           value = attr.getValue();
+          //          attr.`
         } catch (UaException e) {
           // TODO Auto-generated catch block
           e.printStackTrace();
         }
+
+        if (rd.getBrowseName()
+            .getName()
+            .contains(Character.toString(NameDescription.PATH_SEPARATOR))) {
+          log.info(
+              "{} ignored since it contains a {} character",
+              rd.getBrowseName().getName(),
+              Character.toString(NameDescription.PATH_SEPARATOR));
+        } else {
+
+          //        FIXME:Remember to re-use these params (Do NOT create new objects when pushing
+          // PVs
+          // out to streams)
+          Parameter p =
+              VariableParam.getForFullyQualifiedName(
+                  qualifiedName(
+                      namespace + NameDescription.PATH_SEPARATOR + rd.getBrowseName().getName(),
+                      rd.getBrowseName().getName()));
+
+          p.setParameterType(opcuaAttrsType);
+
+          //        TODO:Add Map of node_id -> Params
+          if (mdb.getParameter(p.getQualifiedName()) == null) {
+            log.info("Adding OPCUA object as parameter to mdb:{}", p.getQualifiedName());
+            mdb.addParameter(p, true);
+
+            try {
+              ManagedDataItem dataItem =
+                  opcuaSubscription.createDataItem(
+                      rd.getNodeId().toNodeId(client.getNamespaceTable()).get());
+            } catch (UaException e) {
+              // TODO Auto-generated catch block
+              e.printStackTrace();
+            }
+
+            //            client.createSubscription(DS_TOTAL_FNAME_BUFSIZE, null, null, null,
+            // CLEAR_BUCKETS_AT_STARTUP_DEFAULT, null)
+          }
+        }
+
         log.debug(
             "{} Node={}, Desc={}, Value={}", indent, rd.getBrowseName().getName(), desc, value);
         //
@@ -730,11 +791,13 @@ public class OPCUALink extends AbstractLink
   public void connectToOPCUAServer(OpcUaClient client, CompletableFuture<OpcUaClient> future)
       throws Exception {
     // synchronous connect
-    System.out.println();
     client.connect().get();
 
     // start browsing at root folder
     browseNode("", client, Identifiers.RootFolder);
+
+    //    ManagedDataItem dataItem =
+    //        opcuaSubscription.createDataItem(Identifiers.Server_ServerStatus_CurrentTime);
 
     future.complete(client);
   }
@@ -763,19 +826,7 @@ public class OPCUALink extends AbstractLink
 
   public void runOPCUClient() throws Exception {
 
-    Member browseName =
-        new Member(AttributeId.BrowseName.toString(), getBasicType(mdb, Type.STRING, null));
-    Member description =
-        new Member(AttributeId.Description.toString(), getBasicType(mdb, Type.STRING, null));
-
-    opcuaAttrsType =
-        new AggregateParameterType.Builder()
-            .setName("OPCUObjectAttributes")
-            .addMember(browseName)
-            .addMember(description)
-            .build();
-    ((NameDescription) opcuaAttrsType)
-        .setQualifiedName(qualifiedName(namespace, opcuaAttrsType.getName()));
+    createOPCUAAttrAggregateType();
     mdb.addParameterType(opcuaAttrsType, true);
 
     Parameter p = VariableParam.getForFullyQualifiedName(qualifiedName(namespace, "HelloNode"));
@@ -784,5 +835,82 @@ public class OPCUALink extends AbstractLink
 
     mdb.addParameter(p, true);
     runOPCUAClient();
+  }
+
+  private void createOPCUAAttrAggregateType() {
+
+    AggregateParameterType.Builder opcuaAttrsTypeBuidlder = new AggregateParameterType.Builder();
+
+    opcuaAttrsType = new AggregateParameterType.Builder().setName("OPCUObjectAttributes").build();
+
+    opcuaAttrsTypeBuidlder.setName("OPCUObjectAttributes");
+    for (AttributeId attr : AttributeId.values()) {
+      opcuaAttrsTypeBuidlder.addMember(
+          new Member(attr.toString(), getBasicType(mdb, Type.STRING, null)));
+    }
+
+    opcuaAttrsType = opcuaAttrsTypeBuidlder.build();
+    ((NameDescription) opcuaAttrsType)
+        .setQualifiedName(qualifiedName(namespace, opcuaAttrsType.getName()));
+  }
+
+  private ParameterType OPCUAAttrTypeToParamType(AttributeId attr) {
+    ParameterType pType = null;
+
+    switch (attr) {
+      case AccessLevel:
+        break;
+      case ArrayDimensions:
+        break;
+      case BrowseName:
+        pType = getBasicType(mdb, Type.STRING, null);
+        break;
+      case ContainsNoLoops:
+        break;
+      case DataType:
+        break;
+      case Description:
+        pType = getBasicType(mdb, Type.STRING, null);
+        break;
+      case DisplayName:
+        pType = getBasicType(mdb, Type.STRING, null);
+        break;
+      case EventNotifier:
+        break;
+      case Executable:
+        break;
+      case Historizing:
+        break;
+      case InverseName:
+        pType = getBasicType(mdb, Type.STRING, null);
+        break;
+      case IsAbstract:
+        break;
+      case MinimumSamplingInterval:
+        break;
+      case NodeClass:
+        break;
+      case NodeId:
+        pType = getBasicType(mdb, Type.STRING, null);
+        break;
+      case Symmetric:
+        break;
+      case UserAccessLevel:
+        break;
+      case UserExecutable:
+        break;
+      case UserWriteMask:
+        break;
+      case Value:
+        break;
+      case ValueRank:
+        break;
+      case WriteMask:
+        break;
+      default:
+        break;
+    }
+
+    return pType;
   }
 }
