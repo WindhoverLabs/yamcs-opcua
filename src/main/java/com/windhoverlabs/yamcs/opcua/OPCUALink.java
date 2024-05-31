@@ -49,7 +49,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
@@ -351,13 +350,28 @@ public class OPCUALink extends AbstractLink
     cols.add(0);
     cols.add(gentime);
 
-    tdef.addColumn("/instruments/tvac/hello1", DataType.PARAMETER_VALUE);
+    //    tdef.addColumn("/instruments/tvac/hello1", DataType.PARAMETER_VALUE);
+    //
+    //    cols.add(getPV(p, Instant.now().toEpochMilli(), new Random().nextLong()));
+    //
+    //    Tuple t = new Tuple(tdef, cols);
+    //
+    //    opcuaStream.emitTuple(t);
 
-    cols.add(getPV(p, Instant.now().toEpochMilli(), new Random().nextLong()));
-
-    Tuple t = new Tuple(tdef, cols);
-
-    opcuaStream.emitTuple(t);
+    /**
+     * FIXME:Need to come up with a mechanism to not update certain values that are up to date...
+     * The more I think about it, it might make sense to have "static" and "runtime" namespaces
+     */
+    //    for (Map.Entry<NodeId, VariableParam> pair : nodeIDToParamsMap.entrySet()) {
+    //
+    //      tdef.addColumn(pair.getValue().getQualifiedName(), DataType.PARAMETER_VALUE);
+    //
+    //      cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(), "PlaceHolder"));
+    //
+    //      Tuple t = new Tuple(tdef, cols);
+    //
+    //      opcuaStream.emitTuple(t);
+    //    }
   }
 
   private static ParameterType getOrCreateType(
@@ -676,19 +690,45 @@ public class OPCUALink extends AbstractLink
             //            pv.setAcquisitionStatus(AcquisitionStatus.ACQUIRED);
             //            pv.setEngValue(v);
 
-            tdef.addColumn(
-                nodeIDToParamsMap.get(items.get(i).getNodeId()).getQualifiedName(),
-                DataType.PARAMETER_VALUE);
+            log.debug(
+                "Data({}) chnage triggered for {}",
+                values.get(i).getValue(),
+                nodeIDToParamsMap.get(items.get(i).getNodeId()).getQualifiedName());
 
-            cols.add(
-                getPV(
-                    nodeIDToParamsMap.get(items.get(i).getNodeId()),
-                    Instant.now().toEpochMilli(),
-                    values.get(i).getValue().toString()));
+            if (values.get(i).getValue() != null) {
+              tdef.addColumn(
+                  nodeIDToParamsMap.get(items.get(i).getNodeId()).getQualifiedName(),
+                  DataType.PARAMETER_VALUE);
 
-            Tuple t = new Tuple(tdef, cols);
+              cols.add(
+                  getPV(
+                      nodeIDToParamsMap.get(items.get(i).getNodeId()),
+                      Instant.now().toEpochMilli(),
+                      values.get(i).getValue().toString()));
 
-            opcuaStream.emitTuple(t);
+              Tuple t = new Tuple(tdef, cols);
+
+              opcuaStream.emitTuple(t);
+            } else {
+              tdef.addColumn(
+                  nodeIDToParamsMap.get(items.get(i).getNodeId()).getQualifiedName(),
+                  DataType.PARAMETER_VALUE);
+
+              cols.add(
+                  getPV(
+                      nodeIDToParamsMap.get(items.get(i).getNodeId()),
+                      Instant.now().toEpochMilli(),
+                      "PlaceHolder**"));
+
+              log.info(
+                  "Data({}) chnage triggered for {} and pushing placeholder PV",
+                  values.get(i).getValue(),
+                  nodeIDToParamsMap.get(items.get(i).getNodeId()).getQualifiedName());
+
+              Tuple t = new Tuple(tdef, cols);
+
+              opcuaStream.emitTuple(t);
+            }
           }
         });
 
@@ -729,58 +769,88 @@ public class OPCUALink extends AbstractLink
           //        FIXME:Remember to re-use these params (Do NOT create new objects when pushing
           // PVs
           // out to streams)
-          Parameter p =
-              VariableParam.getForFullyQualifiedName(
-                  qualifiedName(
-                      namespace
-                          + NameDescription.PATH_SEPARATOR
-                          + rd.getBrowseName().getName()
-                          + NameDescription.PATH_SEPARATOR
-                          + rd.getNodeId(),
-                      rd.getBrowseName().getName()));
 
-          p.setParameterType(opcuaAttrsType);
+          /**
+           * NOTE:For now we'll just flatten all the attributes instead of using an aggregate type
+           * for attributes
+           */
+          //          p.setParameterType(opcuaAttrsType);
 
-          //        TODO:Add Map of node_id -> Params
-          if (mdb.getParameter(p.getQualifiedName()) == null) {
-            log.info("Adding OPCUA object as parameter to mdb:{}", p.getQualifiedName());
-            mdb.addParameter(p, true);
+          for (AttributeId attr : AttributeId.values()) {
 
-            nodeIDToParamsMap.put(
-                rd.getNodeId().toNodeId(client.getNamespaceTable()).get(), (VariableParam) p);
+            ParameterType ptype = getBasicType(mdb, Yamcs.Value.Type.STRING, null);
+            Parameter p =
+                VariableParam.getForFullyQualifiedName(
+                    qualifiedName(
+                        namespace
+                            + NameDescription.PATH_SEPARATOR
+                            + rd.getNodeClass()
+                            + rd.getBrowseName().getName(),
+                        attr.toString()));
 
-            TupleDefinition tdef = gftdef.copy();
-            List<Object> cols = new ArrayList<>(4 + 1);
-            long gentime = timeService.getMissionTime();
-            cols.add(gentime);
-            cols.add(namespace);
-            cols.add(0);
-            cols.add(gentime);
+            p.setParameterType(ptype);
 
-            tdef.addColumn(
-                nodeIDToParamsMap
-                    .get(rd.getNodeId().toNodeId(client.getNamespaceTable()).get())
-                    .getQualifiedName(),
-                DataType.PARAMETER_VALUE);
+            //        TODO:Add Map of node_id -> Params
+            if (mdb.getParameter(p.getQualifiedName()) == null) {
+              log.debug("Adding OPCUA object as parameter to mdb:{}", p.getQualifiedName());
+              mdb.addParameter(p, true);
 
-            cols.add(
-                getPV(
-                    nodeIDToParamsMap.get(
-                        rd.getNodeId().toNodeId(client.getNamespaceTable()).get()),
-                    Instant.now().toEpochMilli(),
-                    "PlaceHolder"));
+              nodeIDToParamsMap.put(
+                  rd.getNodeId().toNodeId(client.getNamespaceTable()).get(), (VariableParam) p);
 
-            Tuple t = new Tuple(tdef, cols);
+              TupleDefinition tdef = gftdef.copy();
+              List<Object> cols = new ArrayList<>(4 + 1);
+              long gentime = timeService.getMissionTime();
+              cols.add(gentime);
+              cols.add(namespace);
+              cols.add(0);
+              cols.add(gentime);
 
-            opcuaStream.emitTuple(t);
+              //            tdef.addColumn(
+              //                nodeIDToParamsMap.get(items.get(i).getNodeId()).getQualifiedName(),
+              //                DataType.PARAMETER_VALUE);
+              //
+              //            cols.add(
+              //                getPV(
+              //                    nodeIDToParamsMap.get(items.get(i).getNodeId()),
+              //                    Instant.now().toEpochMilli(),
+              //                    values.get(i).getValue().toString()));
 
-            try {
-              ManagedDataItem dataItem =
-                  opcuaSubscription.createDataItem(
-                      rd.getNodeId().toNodeId(client.getNamespaceTable()).get());
-            } catch (UaException e) {
-              // TODO Auto-generated catch block
-              e.printStackTrace();
+              //              tdef.addColumn(
+              //                  nodeIDToParamsMap
+              //
+              // .get(rd.getNodeId().toNodeId(client.getNamespaceTable()).get())
+              //                      .getQualifiedName(),
+              //                  DataType.PARAMETER_VALUE);
+              //
+              //              cols.add(
+              //                  getPV(
+              //                      nodeIDToParamsMap.get(
+              //
+              // rd.getNodeId().toNodeId(client.getNamespaceTable()).get()),
+              //                      Instant.now().toEpochMilli(),
+              //                      "PlaceHolder"));
+              //
+              //              Tuple t = new Tuple(tdef, cols);
+              //
+              //              log.info(
+              //                  "Data({}) chnage triggered for {} and pushing placeholder PV",
+              //                  "PlaceHolder",
+              //                  nodeIDToParamsMap
+              //
+              // .get(rd.getNodeId().toNodeId(client.getNamespaceTable()).get())
+              //                      .getQualifiedName());
+              //
+              //              opcuaStream.emitTuple(t);
+
+              try {
+                ManagedDataItem dataItem =
+                    opcuaSubscription.createDataItem(
+                        rd.getNodeId().toNodeId(client.getNamespaceTable()).get());
+              } catch (UaException e) {
+                // TODO Auto-generated catch block
+                e.printStackTrace();
+              }
             }
           }
         }
