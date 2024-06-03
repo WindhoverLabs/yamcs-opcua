@@ -39,7 +39,6 @@ import static org.yamcs.xtce.NameDescription.qualifiedName;
 
 import com.google.common.io.BaseEncoding;
 import java.io.File;
-import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.nio.charset.UnsupportedCharsetException;
 import java.nio.file.Files;
@@ -182,6 +181,8 @@ public class OPCUALink extends AbstractLink
   Integer appNameMax;
   Integer eventMsgMax;
 
+  //  FIXME:Make the namespace configurable
+
   // /yamcs/<server_id>
   private String namespace;
   private String serverId;
@@ -192,18 +193,17 @@ public class OPCUALink extends AbstractLink
   ParameterSink paraSink;
   private static TupleDefinition gftdef = StandardTupleDefinitions.PARAMETER.copy();
 
-  //  NOTE:ALWAYS re-use this param as org.yamcs.parameter.ParameterRequestManager.param2RequestMap
+  private DefaultTrustListManager trustListManager;
+  private AggregateParameterType opcuaAttrsType;
+  private ManagedSubscription opcuaSubscription;
+
+  //  NOTE:ALWAYS re-use params as org.yamcs.parameter.ParameterRequestManager.param2RequestMap
   //  uses the object inside a map that was added to the mdb for the very fist time.
   //  If when publishing the PV, we create a new VariableParam object clients will NOT
   //  receive real-time updates as the new object VariableParam inside the new PV won't match the
   // one
   //  inside org.yamcs.parameter.ParameterRequestManager.param2RequestMap since the object hashes
   //  do not match (since VariableParam does not override its hash function).
-  private VariableParam p;
-
-  private DefaultTrustListManager trustListManager;
-  private AggregateParameterType opcuaAttrsType;
-  private ManagedSubscription opcuaSubscription;
 
   private ConcurrentHashMap<NodeIDAttrPair, VariableParam> nodeIDToParamsMap =
       new ConcurrentHashMap<NodeIDAttrPair, VariableParam>();
@@ -213,7 +213,6 @@ public class OPCUALink extends AbstractLink
   @Override
   public Spec getSpec() {
     Spec spec = new Spec();
-    Spec preprocessorSpec = new Spec();
 
     /* Define our configuration parameters. */
     spec.addOption("name", OptionType.STRING).withRequired(true);
@@ -228,9 +227,8 @@ public class OPCUALink extends AbstractLink
     super.init(yamcsInstance, serviceName, config);
 
     /* Local variables */
-    String packetInputStreamClassName;
     this.config = config;
-    /* Calidate the configuration that the user passed us. */
+    /* Validate the configuration that the user passed us. */
     try {
       config = getSpec().validate(config);
     } catch (ValidationException e) {
@@ -256,15 +254,8 @@ public class OPCUALink extends AbstractLink
 
     mdb = YamcsServer.getServer().getInstance(yamcsInstance).getXtceDb();
 
+    //    TODO:Make this configurable
     namespace = "/instruments/tvac";
-
-    p = VariableParam.getForFullyQualifiedName("/instruments/tvac/hello1");
-
-    ParameterType ptype = getBasicType(mdb, Yamcs.Value.Type.SINT64, null);
-
-    p.setQualifiedName("/instruments/tvac/hello1");
-    p.setParameterType(ptype);
-    mdb.addParameter(p, true);
 
     opcuaInit();
   }
@@ -380,14 +371,6 @@ public class OPCUALink extends AbstractLink
   }
 
   private void publishNewPVs() {
-
-    //    tdef.addColumn("/instruments/tvac/hello1", DataType.PARAMETER_VALUE);
-    //
-    //    cols.add(getPV(p, Instant.now().toEpochMilli(), new Random().nextLong()));
-    //
-    //    Tuple t = new Tuple(tdef, cols);
-    //
-    //    opcuaStream.emitTuple(t);
 
     /**
      * FIXME:Need to come up with a mechanism to not update certain values that are up to date...
@@ -551,25 +534,6 @@ public class OPCUALink extends AbstractLink
     //    list.add(SystemParametersService.getPV(OPCUAServerStatus, time, outOfSync));
   }
 
-  private String decodeString(ByteBuffer buf, int maxLength) {
-    maxLength = Math.min(maxLength, buf.remaining());
-    ByteBuffer buf1 = buf.slice();
-    buf1.limit(maxLength);
-    int k = 0;
-    while (k < maxLength) {
-      if (buf1.get(k) == 0) {
-        break;
-      }
-      k++;
-    }
-    buf1.limit(k);
-
-    String r = charset.decode(buf1).toString();
-    buf.position(buf.position() + maxLength);
-
-    return r;
-  }
-
   public static ParameterValue getNewPv(Parameter parameter, long time) {
     ParameterValue pv = new ParameterValue(parameter);
     pv.setAcquisitionTime(time);
@@ -681,6 +645,7 @@ public class OPCUALink extends AbstractLink
 
     trustListManager = new DefaultTrustListManager(pkiDir);
 
+    //    FIXME:Make url configurable
     List<EndpointDescription> endpoint =
         DiscoveryClient.getEndpoints("opc.tcp://localhost:4840/").get();
 
@@ -707,7 +672,6 @@ public class OPCUALink extends AbstractLink
       for (ReferenceDescription rd : references) {
         Object desc = null;
         Object value = null;
-        Variant nodeClass = null;
         try {
           UaNode node =
               client
@@ -719,8 +683,6 @@ public class OPCUALink extends AbstractLink
           attr = node.readAttribute(AttributeId.Value);
 
           value = attr.getValue();
-
-          nodeClass = node.readAttribute(AttributeId.NodeClass).getValue();
 
         } catch (UaException e) {
           // TODO Auto-generated catch block
@@ -978,10 +940,11 @@ public class OPCUALink extends AbstractLink
                 log.debug("No parameter mapping found for {}", nodeAttrKey.nodeID);
                 continue;
               } else {
-                //              System.out.println(
-                //                  String.format(
-                //                      "parameter mapping found for %s and %s",
-                //                      nodeAttrKey.nodeID, nodeAttrKey.attrID));
+                log.debug(
+                    String.format(
+                        "parameter mapping found for {} and {}",
+                        nodeAttrKey.nodeID,
+                        nodeAttrKey.attrID));
               }
 
               if (values.get(i).getValue() != null) {
