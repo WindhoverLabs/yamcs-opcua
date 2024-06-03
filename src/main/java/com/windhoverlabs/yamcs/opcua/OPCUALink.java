@@ -754,7 +754,7 @@ public class OPCUALink extends AbstractLink
                     qualifiedName(
                         namespace
                             + NameDescription.PATH_SEPARATOR
-                            + rd.getNodeId()
+                            + rd.getNodeId().toNodeId(client.getNamespaceTable()).get()
                             + NameDescription.PATH_SEPARATOR
                             + rd.getNodeClass()
                             + NameDescription.PATH_SEPARATOR
