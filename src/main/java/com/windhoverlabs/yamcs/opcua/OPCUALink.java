@@ -49,6 +49,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
@@ -180,6 +181,8 @@ public class OPCUALink extends AbstractLink
 
   private HashMap<NodeId, VariableParam> nodeIDToParamsMap = new HashMap<NodeId, VariableParam>();
 
+  private OpcUaClient client;
+
   @Override
   public Spec getSpec() {
     Spec spec = new Spec();
@@ -236,6 +239,13 @@ public class OPCUALink extends AbstractLink
     p.setParameterType(ptype);
     mdb.addParameter(p, true);
 
+    try {
+      runOPCUClient();
+    } catch (Exception e) {
+      // TODO Auto-generated catch block
+      e.printStackTrace();
+    }
+
     scheduler.scheduleAtFixedRate(
         () -> {
           publishNewPVs();
@@ -243,13 +253,6 @@ public class OPCUALink extends AbstractLink
         1,
         1,
         TimeUnit.SECONDS);
-
-    try {
-      runOPCUClient();
-    } catch (Exception e) {
-      // TODO Auto-generated catch block
-      e.printStackTrace();
-    }
   }
 
   private static Stream getStream(YarchDatabaseInstance ydb, String streamName) {
@@ -342,13 +345,6 @@ public class OPCUALink extends AbstractLink
   }
 
   private void publishNewPVs() {
-    TupleDefinition tdef = gftdef.copy();
-    List<Object> cols = new ArrayList<>(4 + 1);
-    long gentime = timeService.getMissionTime();
-    cols.add(gentime);
-    cols.add(namespace);
-    cols.add(0);
-    cols.add(gentime);
 
     //    tdef.addColumn("/instruments/tvac/hello1", DataType.PARAMETER_VALUE);
     //
@@ -362,16 +358,48 @@ public class OPCUALink extends AbstractLink
      * FIXME:Need to come up with a mechanism to not update certain values that are up to date...
      * The more I think about it, it might make sense to have "static" and "runtime" namespaces
      */
-    //    for (Map.Entry<NodeId, VariableParam> pair : nodeIDToParamsMap.entrySet()) {
-    //
-    //      tdef.addColumn(pair.getValue().getQualifiedName(), DataType.PARAMETER_VALUE);
-    //
-    //      cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(), "PlaceHolder"));
-    //
-    //      Tuple t = new Tuple(tdef, cols);
-    //
-    //      opcuaStream.emitTuple(t);
-    //    }
+    for (Map.Entry<NodeId, VariableParam> pair : nodeIDToParamsMap.entrySet()) {
+
+      TupleDefinition tdef = gftdef.copy();
+      List<Object> cols = new ArrayList<>(4 + 1);
+      long gentime = timeService.getMissionTime();
+      cols.add(gentime);
+      cols.add(namespace);
+      cols.add(0);
+      cols.add(gentime);
+
+      tdef.addColumn(pair.getValue().getQualifiedName(), DataType.PARAMETER_VALUE);
+
+      cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(), "PlaceHolder"));
+
+      UaNode node;
+      try {
+        node = client.getAddressSpace().getNode(pair.getKey());
+      } catch (UaException e) {
+        // TODO Auto-generated catch block
+        e.printStackTrace();
+        continue;
+      }
+      try {
+        DataValue attr = node.readAttribute(AttributeId.NodeClass);
+        attr.getValue();
+
+        Tuple t = new Tuple(tdef, cols);
+
+        opcuaStream.emitTuple(t);
+
+      } catch (UaException e) {
+        // TODO Auto-generated catch block
+        e.printStackTrace();
+        continue;
+      }
+
+      //	if()
+      //	{
+      //
+      //	}
+
+    }
   }
 
   private static ParameterType getOrCreateType(
@@ -885,7 +913,7 @@ public class OPCUALink extends AbstractLink
 
     final CompletableFuture<OpcUaClient> future = new CompletableFuture<>();
 
-    OpcUaClient client = null;
+    client = null;
     try {
       client = createClient();
     } catch (Exception e) {
