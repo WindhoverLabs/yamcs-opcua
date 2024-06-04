@@ -8,7 +8,7 @@
  * SPDX-License-Identifier: EPL-2.0
  */
 
-package com.windhoverlabs.yamcs.opcua;
+package com.windhoverlabs.yamcs.opcua.test;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Predicate;

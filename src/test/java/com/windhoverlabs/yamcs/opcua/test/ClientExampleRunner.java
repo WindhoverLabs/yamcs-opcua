@@ -8,7 +8,7 @@
  * SPDX-License-Identifier: EPL-2.0
  */
 
-package com.windhoverlabs.yamcs.opcua;
+package com.windhoverlabs.yamcs.opcua.test;
 
 import java.io.File;
 import java.nio.file.Files;
