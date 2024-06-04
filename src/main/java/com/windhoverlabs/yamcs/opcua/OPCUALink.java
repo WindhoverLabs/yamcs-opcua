@@ -46,7 +46,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -201,7 +200,7 @@ public class OPCUALink extends AbstractLink
           CompletableFuture.supplyAsync(
                   (Supplier<Integer>)
                       () -> {
-                        publishNewPVs();
+                        queryAllOPCUAData();
 
                         return 0;
                       })
@@ -360,7 +359,7 @@ public class OPCUALink extends AbstractLink
     }
   }
 
-  private void publishNewPVs() {
+  private void queryAllOPCUAData() {
 
     Tuple t = null;
     TupleDefinition tdef = gftdef.copy();
@@ -375,154 +374,106 @@ public class OPCUALink extends AbstractLink
 
     int columnCount = 0;
 
-    //    Set<NodeId> nodeSet = new HashSet<NodeId>();
-    //    /**
-    //     * FIXME:This is super inefficient... The reason we collect these nodeIDs in a set is
-    // because
-    //     * otherwise we will have redundant subscription(s) since there is more than 1 attribute
-    // per
-    //     * nodeID given how nodeIDToParamsMap is designed
-    //     */
-    //    for (NodeIDAttrPair pair : nodeIDToParamsMap.keySet()) {
-    //      nodeSet.add(pair.nodeID);
-    //    }
-    //
-    //    for(NodeId nID: nodeSet)
-    //    {
-    //        UaNode node;
-    //
-    //        try {
-    //          node = client.getAddressSpace().getNode(pair.getKey().nodeID);
-    //        } catch (UaException e) {
-    //          // TODO Auto-generated catch block
-    //          e.printStackTrace();
-    //          continue;
-    //        }
-    //        try {
-    //          DataValue nodeClass = node.readAttribute(AttributeId.NodeClass);
-    //
-    //          switch (NodeClass.from((int) nodeClass.getValue().getValue())) {
-    //            case DataType:
-    //              tdef.addColumn(pair.getValue().getQualifiedName(), DataType.PARAMETER_VALUE);
-    //              cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(), "PlaceHolder"));
-    //              columnCount++;
-    //              break;
-    //            case Method:
-    //              tdef.addColumn(pair.getValue().getQualifiedName(), DataType.PARAMETER_VALUE);
-    //              cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(), "PlaceHolder"));
-    //              columnCount++;
-    //              break;
-    //            case Object:
-    //              tdef.addColumn(pair.getValue().getQualifiedName(), DataType.PARAMETER_VALUE);
-    //              cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(), "PlaceHolder"));
-    //              columnCount++;
-    //              break;
-    //            case ObjectType:
-    //              tdef.addColumn(pair.getValue().getQualifiedName(), DataType.PARAMETER_VALUE);
-    //              cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(), "PlaceHolder"));
-    //              columnCount++;
-    //              break;
-    //            case ReferenceType:
-    //              tdef.addColumn(pair.getValue().getQualifiedName(), DataType.PARAMETER_VALUE);
-    //              cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(), "PlaceHolder"));
-    //              columnCount++;
-    //              break;
-    //            case Unspecified:
-    //              tdef.addColumn(pair.getValue().getQualifiedName(), DataType.PARAMETER_VALUE);
-    //              cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(), "PlaceHolder"));
-    //              columnCount++;
-    //              break;
-    //            case Variable:
-    //              //          ManagedDataItem dataItem =
-    //              // opcuaSubscription.createDataItem(entry.getKey().nodeID);
-    //              //          log.debug("Status code for dataItem:{}", dataItem.getStatusCode());
-    //              break;
-    //            case VariableType:
-    //              tdef.addColumn(pair.getValue().getQualifiedName(), DataType.PARAMETER_VALUE);
-    //              cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(), "PlaceHolder"));
-    //              columnCount++;
-    //              break;
-    //            case View:
-    //              tdef.addColumn(pair.getValue().getQualifiedName(), DataType.PARAMETER_VALUE);
-    //              cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(), "PlaceHolder"));
-    //              columnCount++;
-    //              break;
-    //            default:
-    //              break;
-    //          }
-    //        } catch (UaException e) {
-    //          // TODO Auto-generated catch block
-    //          e.printStackTrace();
-    //          continue;
-    //        }
-    //    }
-
+    Set<NodeId> nodeSet = new HashSet<NodeId>();
     /**
-     * FIXME:Need to come up with a mechanism to not update certain values that are up to date...
-     * The more I think about it, it might make sense to have "static" and "runtime" namespaces
+     * FIXME:This is super inefficient... The reason we collect these nodeIDs in a set is because
+     * otherwise we will have redundant subscription(s) since there is more than 1 attribute per
+     * nodeID given how nodeIDToParamsMap is designed
      */
-    for (Map.Entry<NodeIDAttrPair, VariableParam> pair : nodeIDToParamsMap.entrySet()) {
+    for (NodeIDAttrPair pair : nodeIDToParamsMap.keySet()) {
+      nodeSet.add(pair.nodeID);
+    }
+
+    for (NodeId nId : nodeSet) {
       UaNode node;
 
       try {
-        node = client.getAddressSpace().getNode(pair.getKey().nodeID);
-      } catch (UaException e) {
-        // TODO Auto-generated catch block
-        e.printStackTrace();
-        continue;
-      }
-      try {
+        node = client.getAddressSpace().getNode(nId);
+
         DataValue nodeClass = node.readAttribute(AttributeId.NodeClass);
 
         switch (NodeClass.from((int) nodeClass.getValue().getValue())) {
           case DataType:
-            tdef.addColumn(pair.getValue().getQualifiedName(), DataType.PARAMETER_VALUE);
-            cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(), "PlaceHolder"));
+            //                tdef.addColumn(pair.getValue().getQualifiedName(),
+            // DataType.PARAMETER_VALUE);
+            //                cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(),
+            // "PlaceHolder"));
             columnCount++;
             break;
           case Method:
-            tdef.addColumn(pair.getValue().getQualifiedName(), DataType.PARAMETER_VALUE);
-            cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(), "PlaceHolder"));
+            //                tdef.addColumn(pair.getValue().getQualifiedName(),
+            // DataType.PARAMETER_VALUE);
+            //                cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(),
+            // "PlaceHolder"));
             columnCount++;
             break;
           case Object:
-            tdef.addColumn(pair.getValue().getQualifiedName(), DataType.PARAMETER_VALUE);
-            cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(), "PlaceHolder"));
+            //                tdef.addColumn(pair.getValue().getQualifiedName(),
+            // DataType.PARAMETER_VALUE);
+            //                cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(),
+            // "PlaceHolder"));
             columnCount++;
             break;
           case ObjectType:
-            tdef.addColumn(pair.getValue().getQualifiedName(), DataType.PARAMETER_VALUE);
-            cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(), "PlaceHolder"));
+            //                tdef.addColumn(pair.getValue().getQualifiedName(),
+            // DataType.PARAMETER_VALUE);
+            //                cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(),
+            // "PlaceHolder"));
             columnCount++;
             break;
           case ReferenceType:
-            tdef.addColumn(pair.getValue().getQualifiedName(), DataType.PARAMETER_VALUE);
-            cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(), "PlaceHolder"));
+            //                tdef.addColumn(pair.getValue().getQualifiedName(),
+            // DataType.PARAMETER_VALUE);
+            //                cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(),
+            // "PlaceHolder"));
             columnCount++;
             break;
           case Unspecified:
-            tdef.addColumn(pair.getValue().getQualifiedName(), DataType.PARAMETER_VALUE);
-            cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(), "PlaceHolder"));
+            //                tdef.addColumn(pair.getValue().getQualifiedName(),
+            // DataType.PARAMETER_VALUE);
+            //                cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(),
+            // "PlaceHolder"));
             columnCount++;
             break;
           case Variable:
-            tdef.addColumn(pair.getValue().getQualifiedName(), DataType.PARAMETER_VALUE);
-            cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(), "PlaceHolder"));
+            //                tdef.addColumn(pair.getValue().getQualifiedName(),
+            // DataType.PARAMETER_VALUE);
+            //                cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(),
+            // "PlaceHolder"));
             columnCount++;
+            for (AttributeId attr : AttributeId.VARIABLE_ATTRIBUTES) {
+              String value = "";
+              if (node.readAttribute(attr).getValue().isNull()) {
+                value = "NULL";
+              } else {
+                value = node.readAttribute(attr).getValue().getValue().toString();
+              }
+
+              VariableParam p = nodeIDToParamsMap.get(new NodeIDAttrPair(nId, attr));
+              tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
+              cols.add(getPV(p, Instant.now().toEpochMilli(), value));
+
+              columnCount++;
+            }
             break;
           case VariableType:
-            tdef.addColumn(pair.getValue().getQualifiedName(), DataType.PARAMETER_VALUE);
-            cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(), "PlaceHolder"));
+            //                tdef.addColumn(pair.getValue().getQualifiedName(),
+            // DataType.PARAMETER_VALUE);
+            //                cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(),
+            // "PlaceHolder"));
             columnCount++;
             break;
           case View:
-            tdef.addColumn(pair.getValue().getQualifiedName(), DataType.PARAMETER_VALUE);
-            cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(), "PlaceHolder"));
+            //                tdef.addColumn(pair.getValue().getQualifiedName(),
+            // DataType.PARAMETER_VALUE);
+            //                cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(),
+            // "PlaceHolder"));
             columnCount++;
             break;
           default:
             break;
         }
+
       } catch (UaException e) {
         // TODO Auto-generated catch block
         e.printStackTrace();
@@ -530,6 +481,10 @@ public class OPCUALink extends AbstractLink
       }
     }
 
+    /**
+     * FIXME:Need to come up with a mechanism to not update certain values that are up to date...
+     * The more I think about it, it might make sense to have "static" and "runtime" namespaces
+     */
     t = new Tuple(tdef, cols);
 
     opcuaStream.emitTuple(t);
