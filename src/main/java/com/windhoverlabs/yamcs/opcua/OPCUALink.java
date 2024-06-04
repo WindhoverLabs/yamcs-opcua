@@ -918,10 +918,6 @@ public class OPCUALink extends AbstractLink
       opcuaSubscription.addDataChangeListener(
           (items, values) -> {
             for (int i = 0; i < items.size(); i++) {
-
-              System.out.println("items.size():" + items.size());
-              System.out.println(
-                  "Attribute ID-->" + items.get(i).getReadValueId().getAttributeId());
               NodeIDAttrPair nodeAttrKey =
                   new NodeIDAttrPair(items.get(i).getNodeId(), AttributeId.Value);
               log.debug(
