@@ -44,8 +44,10 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
@@ -196,9 +198,6 @@ public class OPCUALink extends AbstractLink
         public JsonObject execute(Link link, JsonObject jsonObject) {
 
           internalLogger.info("Executing query_all action");
-
-          final CompletableFuture<OpcUaClient> future = new CompletableFuture<>();
-
           CompletableFuture.supplyAsync(
               (Supplier<Integer>)
                   () -> {
@@ -369,6 +368,8 @@ public class OPCUALink extends AbstractLink
     cols.add(0);
     cols.add(gentime);
 
+    int columnCount = 0;
+
     /**
      * FIXME:Need to come up with a mechanism to not update certain values that are up to date...
      * The more I think about it, it might make sense to have "static" and "runtime" namespaces
@@ -391,26 +392,32 @@ public class OPCUALink extends AbstractLink
           case DataType:
             tdef.addColumn(pair.getValue().getQualifiedName(), DataType.PARAMETER_VALUE);
             cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(), "PlaceHolder"));
+            columnCount++;
             break;
           case Method:
             tdef.addColumn(pair.getValue().getQualifiedName(), DataType.PARAMETER_VALUE);
             cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(), "PlaceHolder"));
+            columnCount++;
             break;
           case Object:
             tdef.addColumn(pair.getValue().getQualifiedName(), DataType.PARAMETER_VALUE);
             cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(), "PlaceHolder"));
+            columnCount++;
             break;
           case ObjectType:
             tdef.addColumn(pair.getValue().getQualifiedName(), DataType.PARAMETER_VALUE);
             cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(), "PlaceHolder"));
+            columnCount++;
             break;
           case ReferenceType:
             tdef.addColumn(pair.getValue().getQualifiedName(), DataType.PARAMETER_VALUE);
             cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(), "PlaceHolder"));
+            columnCount++;
             break;
           case Unspecified:
             tdef.addColumn(pair.getValue().getQualifiedName(), DataType.PARAMETER_VALUE);
             cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(), "PlaceHolder"));
+            columnCount++;
             break;
           case Variable:
             //          ManagedDataItem dataItem =
@@ -420,18 +427,16 @@ public class OPCUALink extends AbstractLink
           case VariableType:
             tdef.addColumn(pair.getValue().getQualifiedName(), DataType.PARAMETER_VALUE);
             cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(), "PlaceHolder"));
+            columnCount++;
             break;
           case View:
             tdef.addColumn(pair.getValue().getQualifiedName(), DataType.PARAMETER_VALUE);
             cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(), "PlaceHolder"));
+            columnCount++;
             break;
           default:
             break;
         }
-
-        //
-        //        System.out.println("attr.getValue();" + attr.getValue().getValue());
-        //
       } catch (UaException e) {
         // TODO Auto-generated catch block
         e.printStackTrace();
@@ -442,6 +447,8 @@ public class OPCUALink extends AbstractLink
     t = new Tuple(tdef, cols);
 
     opcuaStream.emitTuple(t);
+
+    inCount.getAndSet(columnCount);
   }
 
   private static ParameterType getOrCreateType(
@@ -821,11 +828,19 @@ public class OPCUALink extends AbstractLink
   }
 
   private void createOPCUASubscriptions() {
-    for (Map.Entry<NodeIDAttrPair, VariableParam> entry : nodeIDToParamsMap.entrySet()) {
-
+    Set<NodeId> nodeSet = new HashSet<NodeId>();
+    /**
+     * FIXME:This is super inefficient... The reason we collect these nodeIDs in a set is because
+     * otherwise we will have redundant subscription(s) since there is more than 1 attribute per
+     * nodeID given how nodeIDToParamsMap is designed
+     */
+    for (NodeIDAttrPair pair : nodeIDToParamsMap.keySet()) {
+      nodeSet.add(pair.nodeID);
+    }
+    for (NodeId id : nodeSet) {
       Variant nodeClass = null;
       try {
-        UaNode node = client.getAddressSpace().getNode(entry.getKey().nodeID);
+        UaNode node = client.getAddressSpace().getNode(id);
 
         nodeClass = node.readAttribute(AttributeId.NodeClass).getValue();
 
@@ -848,7 +863,7 @@ public class OPCUALink extends AbstractLink
           case Unspecified:
             break;
           case Variable:
-            ManagedDataItem dataItem = opcuaSubscription.createDataItem(entry.getKey().nodeID);
+            ManagedDataItem dataItem = opcuaSubscription.createDataItem(id);
             log.debug("Status code for dataItem:{}", dataItem.getStatusCode());
             break;
           case VariableType:
@@ -894,7 +909,7 @@ public class OPCUALink extends AbstractLink
       connectToOPCUAServer(client, future);
 
       try {
-        opcuaSubscription = ManagedSubscription.create(client, 0);
+        opcuaSubscription = ManagedSubscription.create(client, 1);
       } catch (UaException e) {
         // TODO Auto-generated catch block
         e.printStackTrace();
@@ -904,6 +919,9 @@ public class OPCUALink extends AbstractLink
           (items, values) -> {
             for (int i = 0; i < items.size(); i++) {
 
+              System.out.println("items.size():" + items.size());
+              System.out.println(
+                  "Attribute ID-->" + items.get(i).getReadValueId().getAttributeId());
               NodeIDAttrPair nodeAttrKey =
                   new NodeIDAttrPair(items.get(i).getNodeId(), AttributeId.Value);
               log.debug(
@@ -981,8 +999,8 @@ public class OPCUALink extends AbstractLink
                         values.get(i).getValue().toString()));
 
                 Tuple t = new Tuple(tdef, cols);
-
                 opcuaStream.emitTuple(t);
+                inCount.getAndAdd(1);
               } else {
                 tdef.addColumn(
                     nodeIDToParamsMap.get(nodeAttrKey).getQualifiedName(),
@@ -1001,7 +1019,9 @@ public class OPCUALink extends AbstractLink
 
                 Tuple t = new Tuple(tdef, cols);
 
-                opcuaStream.emitTuple(t);
+                //                opcuaStream.emitTuple(t);
+
+                //                inCount.getAndAdd(1);
               }
             }
           });
