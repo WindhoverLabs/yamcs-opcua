@@ -50,8 +50,6 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.logging.Logger;
@@ -146,6 +144,7 @@ public class OPCUALink extends AbstractLink
       return (this.hashCode() == obj.hashCode());
     }
   }
+
   /* Configuration Defaults */
   static final String STREAM_NAME = "opcua_params";
 
@@ -156,7 +155,6 @@ public class OPCUALink extends AbstractLink
   protected long period;
   boolean ignoreSpacecraftID;
   boolean ignoreProcessorID;
-  private String outputFile;
 
   /* Internal member attributes. */
   protected FileSystemBucket csvBucket;
@@ -167,8 +165,6 @@ public class OPCUALink extends AbstractLink
   private String opcuaStreamName;
 
   static final String DATA_EVENT_CNAME = "data";
-
-  private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
   Integer appNameMax;
   Integer eventMsgMax;
@@ -667,7 +663,7 @@ public class OPCUALink extends AbstractLink
 
   @Override
   public void enable() {
-    // TODO Auto-generated method stubf
+    // TODO Auto-generated method stub
 
   }
 
@@ -698,7 +694,7 @@ public class OPCUALink extends AbstractLink
   @Override
   public void resetCounters() {
     // TODO Auto-generated method stub
-
+    inCount.set(0);
   }
 
   private OpcUaClient createClient() throws Exception {

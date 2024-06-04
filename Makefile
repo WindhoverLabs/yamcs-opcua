@@ -1,10 +1,15 @@
 build:
 	mvn clean install
+
+check-format:
+	mvn com.spotify.fmt:fmt-maven-plugin:check
+
 format:
 	mvn com.coveo:fmt-maven-plugin:format
 
 bundle-deps:
 	mvn -DskipTests install dependency:copy-dependencies
+
 
 install-opc-ua-stack:
 	mvn install:install-file \
