@@ -37,10 +37,8 @@ import static org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.
 import static org.eclipse.milo.opcua.stack.core.util.ConversionUtil.toList;
 import static org.yamcs.xtce.NameDescription.qualifiedName;
 
-import com.google.common.io.BaseEncoding;
+import com.google.gson.JsonObject;
 import java.io.File;
-import java.nio.charset.Charset;
-import java.nio.charset.UnsupportedCharsetException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -53,8 +51,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
+import java.util.logging.Logger;
 import org.eclipse.milo.opcua.sdk.client.OpcUaClient;
 import org.eclipse.milo.opcua.sdk.client.api.config.OpcUaClientConfig;
 import org.eclipse.milo.opcua.sdk.client.nodes.UaNode;
@@ -90,6 +89,8 @@ import org.yamcs.parameter.Value;
 import org.yamcs.protobuf.Yamcs;
 import org.yamcs.protobuf.Yamcs.Value.Type;
 import org.yamcs.tctm.AbstractLink;
+import org.yamcs.tctm.Link;
+import org.yamcs.tctm.LinkAction;
 import org.yamcs.tctm.PacketInputStream;
 import org.yamcs.tctm.ParameterSink;
 import org.yamcs.utils.ValueUtility;
@@ -152,10 +153,6 @@ public class OPCUALink extends AbstractLink
   /* Configuration Parameters */
   protected long initialDelay;
   protected long period;
-  protected boolean clearBucketsAtStartup;
-  protected boolean deleteFileAfterProcessing;
-  protected int EVS_FILE_HDR_SUBTYPE;
-  protected int DS_TOTAL_FNAME_BUFSIZE;
   boolean ignoreSpacecraftID;
   boolean ignoreProcessorID;
   private String outputFile;
@@ -169,12 +166,6 @@ public class OPCUALink extends AbstractLink
   private String opcuaStreamName;
 
   static final String DATA_EVENT_CNAME = "data";
-
-  private Charset charset;
-
-  /* Constants */
-  static final byte[] CFE_FS_FILE_CONTENT_ID_BYTE =
-      BaseEncoding.base16().lowerCase().decode("63464531".toLowerCase());
 
   private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
@@ -197,6 +188,28 @@ public class OPCUALink extends AbstractLink
   private AggregateParameterType opcuaAttrsType;
   private ManagedSubscription opcuaSubscription;
 
+  private static final Logger internalLogger = Logger.getLogger(OPCUALink.class.getName());
+
+  LinkAction startAction =
+      new LinkAction("query_all", "Query All OPCUA Server Data") {
+        @Override
+        public JsonObject execute(Link link, JsonObject jsonObject) {
+
+          internalLogger.info("Executing query_all action");
+
+          final CompletableFuture<OpcUaClient> future = new CompletableFuture<>();
+
+          CompletableFuture.supplyAsync(
+              (Supplier<Integer>)
+                  () -> {
+                    publishNewPVs();
+
+                    return 0;
+                  });
+          return jsonObject;
+        }
+      };
+
   //  NOTE:ALWAYS re-use params as org.yamcs.parameter.ParameterRequestManager.param2RequestMap
   //  uses the object inside a map that was added to the mdb for the very fist time.
   //  If when publishing the PV, we create a new VariableParam object clients will NOT
@@ -209,6 +222,8 @@ public class OPCUALink extends AbstractLink
       new ConcurrentHashMap<NodeIDAttrPair, VariableParam>();
 
   private OpcUaClient client;
+
+  protected AtomicLong inCount = new AtomicLong(0);
 
   @Override
   public Spec getSpec() {
@@ -234,18 +249,6 @@ public class OPCUALink extends AbstractLink
     } catch (ValidationException e) {
       log.error("Failed configuration validation.", e);
     }
-
-    String chrname = config.getString("charset", "US-ASCII");
-    try {
-      charset = Charset.forName(chrname);
-    } catch (UnsupportedCharsetException e) {
-      throw new ConfigurationException(
-          "Unsupported charset '"
-              + chrname
-              + "'. Please use one of "
-              + Charset.availableCharsets().keySet());
-    }
-
     YarchDatabaseInstance ydb = YarchDatabase.getInstance(yamcsInstance);
 
     this.opcuaStreamName = config.getString("opcua_stream");
@@ -267,14 +270,6 @@ public class OPCUALink extends AbstractLink
       // TODO Auto-generated catch block
       e.printStackTrace();
     }
-
-    scheduler.scheduleAtFixedRate(
-        () -> {
-          publishNewPVs();
-        },
-        1,
-        1,
-        TimeUnit.SECONDS);
   }
 
   private static Stream getStream(YarchDatabaseInstance ydb, String streamName) {
@@ -326,6 +321,15 @@ public class OPCUALink extends AbstractLink
     if (!isDisabled()) {
       doEnable();
     }
+    startAction.addChangeListener(
+        () -> {
+          /**
+           * TODO:Might be useful if we want turn off any functionality when are action is disabled
+           * for instance..
+           */
+        });
+    addAction(startAction);
+    startAction.setEnabled(true);
     notifyStarted();
   }
 
@@ -344,33 +348,26 @@ public class OPCUALink extends AbstractLink
 
   @Override
   public void run() {
-    /* Delay the start, if configured to do so. */
-    if (initialDelay > 0) {
-      try {
-        Thread.sleep(initialDelay);
-        initialDelay = -1;
-      } catch (InterruptedException e) {
-        Thread.currentThread().interrupt();
-        return;
-      }
-    }
 
     /* Enter our main loop */
     while (isRunningAndEnabled()) {
       /* Iterate through all our watch keys. */
 
-      //    	publishNewPVs();
-
-      /* Sleep for the configured amount of time.  We normally sleep so we don't needlessly chew up resources. */
-      try {
-        Thread.sleep(this.period);
-      } catch (InterruptedException e) {
-        Thread.currentThread().interrupt();
-      }
     }
   }
 
   private void publishNewPVs() {
+
+    Tuple t = null;
+    TupleDefinition tdef = gftdef.copy();
+    List<Object> cols = new ArrayList<>(4 + nodeIDToParamsMap.keySet().size());
+
+    tdef = gftdef.copy();
+    long gentime = timeService.getMissionTime();
+    cols.add(gentime);
+    cols.add(namespace);
+    cols.add(0);
+    cols.add(gentime);
 
     /**
      * FIXME:Need to come up with a mechanism to not update certain values that are up to date...
@@ -378,48 +375,73 @@ public class OPCUALink extends AbstractLink
      */
     for (Map.Entry<NodeIDAttrPair, VariableParam> pair : nodeIDToParamsMap.entrySet()) {
 
-      TupleDefinition tdef = gftdef.copy();
-      List<Object> cols = new ArrayList<>(4 + 1);
-      long gentime = timeService.getMissionTime();
-      cols.add(gentime);
-      cols.add(namespace);
-      cols.add(0);
-      cols.add(gentime);
+      UaNode node;
 
-      //      tdef.addColumn(pair.getValue().getQualifiedName(), DataType.PARAMETER_VALUE);
-      //
-      //      cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(), "PlaceHolder"));
-      //
-      //      UaNode node;
-      //      try {
-      //        node = client.getAddressSpace().getNode(pair.getKey());
-      //      } catch (UaException e) {
-      //        // TODO Auto-generated catch block
-      //        e.printStackTrace();
-      //        continue;
-      //      }
-      //      try {
-      //        DataValue attr = node.readAttribute(AttributeId.NodeClass);
-      //        attr.getValue();
-      //
-      //        Tuple t = new Tuple(tdef, cols);
-      //
-      //        //        opcuaStream.emitTuple(t);
-      //
-      //        System.out.println("attr.getValue();" + attr.getValue().getValue());
-      //
-      //      } catch (UaException e) {
-      //        // TODO Auto-generated catch block
-      //        e.printStackTrace();
-      //        continue;
-      //      }
+      try {
+        node = client.getAddressSpace().getNode(pair.getKey().nodeID);
+      } catch (UaException e) {
+        // TODO Auto-generated catch block
+        e.printStackTrace();
+        continue;
+      }
+      try {
+        DataValue nodeClass = node.readAttribute(AttributeId.NodeClass);
 
-      //	if()
-      //	{
-      //
-      //	}
+        switch (NodeClass.from((int) nodeClass.getValue().getValue())) {
+          case DataType:
+            tdef.addColumn(pair.getValue().getQualifiedName(), DataType.PARAMETER_VALUE);
+            cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(), "PlaceHolder"));
+            break;
+          case Method:
+            tdef.addColumn(pair.getValue().getQualifiedName(), DataType.PARAMETER_VALUE);
+            cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(), "PlaceHolder"));
+            break;
+          case Object:
+            tdef.addColumn(pair.getValue().getQualifiedName(), DataType.PARAMETER_VALUE);
+            cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(), "PlaceHolder"));
+            break;
+          case ObjectType:
+            tdef.addColumn(pair.getValue().getQualifiedName(), DataType.PARAMETER_VALUE);
+            cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(), "PlaceHolder"));
+            break;
+          case ReferenceType:
+            tdef.addColumn(pair.getValue().getQualifiedName(), DataType.PARAMETER_VALUE);
+            cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(), "PlaceHolder"));
+            break;
+          case Unspecified:
+            tdef.addColumn(pair.getValue().getQualifiedName(), DataType.PARAMETER_VALUE);
+            cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(), "PlaceHolder"));
+            break;
+          case Variable:
+            //          ManagedDataItem dataItem =
+            // opcuaSubscription.createDataItem(entry.getKey().nodeID);
+            //          log.debug("Status code for dataItem:{}", dataItem.getStatusCode());
+            break;
+          case VariableType:
+            tdef.addColumn(pair.getValue().getQualifiedName(), DataType.PARAMETER_VALUE);
+            cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(), "PlaceHolder"));
+            break;
+          case View:
+            tdef.addColumn(pair.getValue().getQualifiedName(), DataType.PARAMETER_VALUE);
+            cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(), "PlaceHolder"));
+            break;
+          default:
+            break;
+        }
 
+        //
+        //        System.out.println("attr.getValue();" + attr.getValue().getValue());
+        //
+      } catch (UaException e) {
+        // TODO Auto-generated catch block
+        e.printStackTrace();
+        continue;
+      }
     }
+
+    t = new Tuple(tdef, cols);
+
+    opcuaStream.emitTuple(t);
   }
 
   private static ParameterType getOrCreateType(
@@ -616,7 +638,7 @@ public class OPCUALink extends AbstractLink
   @Override
   public long getDataInCount() {
     // TODO Auto-generated method stub
-    return 0;
+    return inCount.get();
   }
 
   @Override
