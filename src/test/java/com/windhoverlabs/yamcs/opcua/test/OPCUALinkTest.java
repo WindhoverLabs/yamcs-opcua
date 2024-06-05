@@ -9,7 +9,6 @@ import com.google.protobuf.Timestamp;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
-
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -25,7 +24,6 @@ import org.yamcs.protobuf.Yamcs.Value;
 import org.yamcs.protobuf.Yamcs.Value.Type;
 import org.yamcs.tests.MessageCaptor;
 import org.yamcs.tests.ParameterCaptor;
-import com.windhoverlabs.yamcs.opcua.test.ExampleServer;
 
 /** Unit test for simple App. */
 public class OPCUALinkTest extends AbstractIntegrationTest {
@@ -34,7 +32,7 @@ public class OPCUALinkTest extends AbstractIntegrationTest {
   String test = "";
 
   private ProcessorClient processorClient;
-  private ExampleServer opcuaServer  = null;
+  private ExampleServer opcuaServer = null;
 
   @BeforeEach
   public void prepare() {
@@ -42,25 +40,23 @@ public class OPCUALinkTest extends AbstractIntegrationTest {
     processorClient = yamcsClient.createProcessorClient(yamcsInstance, "realtime");
     System.out.println("prepare*************call2");
     try {
-    	opcuaServer = ExampleServer.initServer();
-        System.out.println("prepare*************call3");
-	} catch (InterruptedException e) {
-		// TODO Auto-generated catch block
-		e.printStackTrace();
-	} catch (ExecutionException e) {
-		// TODO Auto-generated catch block
-		e.printStackTrace();
-	} catch (Exception e) {
-		// TODO Auto-generated catch block
-		e.printStackTrace();
-	}
-    
+      opcuaServer = ExampleServer.initServer();
+      System.out.println("prepare*************call3");
+    } catch (InterruptedException e) {
+      // TODO Auto-generated catch block
+      e.printStackTrace();
+    } catch (ExecutionException e) {
+      // TODO Auto-generated catch block
+      e.printStackTrace();
+    } catch (Exception e) {
+      // TODO Auto-generated catch block
+      e.printStackTrace();
+    }
   }
-  
+
   @AfterEach
-  public void OPCUAServerShutdown() 
-  {
-	  opcuaServer.shutdown();
+  public void OPCUAServerShutdown() {
+    opcuaServer.shutdown();
   }
 
   //  @Test
@@ -165,6 +161,5 @@ public class OPCUALinkTest extends AbstractIntegrationTest {
   public void testOPCUALink() {
     System.out.println("setupYamcs*************call3");
     assertEquals(test, "");
-    
   }
 }

@@ -70,13 +70,15 @@ public class ExampleServer {
       System.exit(-1);
     }
   }
-public static ExampleServer initServer() throws Exception, InterruptedException, ExecutionException {
-	ExampleServer server = new ExampleServer();
+
+  public static ExampleServer initServer()
+      throws Exception, InterruptedException, ExecutionException {
+    ExampleServer server = new ExampleServer();
 
     server.startup().get();
-    
+
     return server;
-}
+  }
 
   private final OpcUaServer server;
   private final ExampleNamespace exampleNamespace;
