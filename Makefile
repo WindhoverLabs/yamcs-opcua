@@ -1,6 +1,9 @@
 build:
 	mvn clean install
 
+dev-build:
+	mvn clean install -Dfmt.skip
+
 check-format:
 	mvn com.spotify.fmt:fmt-maven-plugin:check
 

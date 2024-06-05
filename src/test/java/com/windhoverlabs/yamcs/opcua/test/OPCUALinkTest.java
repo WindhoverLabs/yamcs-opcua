@@ -3,19 +3,21 @@ package com.windhoverlabs.yamcs.opcua.test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import org.junit.jupiter.api.BeforeEach;
-// import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.yamcs.client.ClientException;
 
 /** Unit test for simple App. */
-public class OPCUALinkTest {
+public class OPCUALinkTest extends AbstractIntegrationTest {
 
   String yamcsInstance2 = "IntegrationTest";
   String test = "";
 
   @BeforeEach
+  @Override
   public void before() throws ClientException {
     System.out.println("setupYamcs*************call");
+    super.before();
+
     try {
       //      setupYamcs();
     } catch (Exception e) {
