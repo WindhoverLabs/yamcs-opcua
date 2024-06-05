@@ -70,18 +70,13 @@ public class ExampleServer {
       System.exit(-1);
     }
   }
-
-  public static void main(String[] args) throws Exception {
-    ExampleServer server = new ExampleServer();
+public static ExampleServer initServer() throws Exception, InterruptedException, ExecutionException {
+	ExampleServer server = new ExampleServer();
 
     server.startup().get();
-
-    final CompletableFuture<Void> future = new CompletableFuture<>();
-
-    Runtime.getRuntime().addShutdownHook(new Thread(() -> future.complete(null)));
-
-    future.get();
-  }
+    
+    return server;
+}
 
   private final OpcUaServer server;
   private final ExampleNamespace exampleNamespace;

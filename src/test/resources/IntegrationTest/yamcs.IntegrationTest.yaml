@@ -32,10 +32,10 @@ dataLinks:
     num: 0
     stream: tc_realtime
 
-  - name: tm_ocpua
-    class: com.windhoverlabs.yamcs.opcua.OPCUALink
-    # stream: tm_realtime
-    opcua_stream: "opcua_params"
+#  - name: tm_ocpua
+#    class: com.windhoverlabs.yamcs.opcua.OPCUALink
+#    # stream: tm_realtime
+#    opcua_stream: "opcua_params"
     # packetPreprocessorClassName: org.yamcs.tctm.cfs.CfsPacketPreprocessor
     # packetPreprocessorArgs:
     #   checkSequence: false
