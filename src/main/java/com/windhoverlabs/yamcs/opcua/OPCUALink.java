@@ -237,7 +237,8 @@ public class OPCUALink extends AbstractLink
   }
 
   @Override
-  public void init(String yamcsInstance, String serviceName, YConfiguration config) {
+  public void init(String yamcsInstance, String serviceName, YConfiguration config)
+      throws ConfigurationException {
     super.init(yamcsInstance, serviceName, config);
 
     /* Local variables */
@@ -262,11 +263,12 @@ public class OPCUALink extends AbstractLink
     opcuaInit();
   }
 
-  private void opcuaInit() {
+  private void opcuaInit() throws ConfigurationException {
+    //  	FIXME:Might need to move this function to start(), maybe...
     try {
       runOPCUAClient();
     } catch (Exception e) {
-      // TODO Auto-generated catch block
+
       e.printStackTrace();
     }
   }

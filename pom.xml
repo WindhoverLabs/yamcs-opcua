@@ -97,11 +97,33 @@
     <version>0.6.13</version>
 </dependency>
 
+		<dependency>
+    <groupId>org.eclipse.milo</groupId>
+    <artifactId>sdk-server</artifactId>
+    <version>0.6.13</version>
+    <scope>test</scope>
+</dependency>
+
 <dependency>
     <groupId>com.github.stefanbirkner</groupId>
     <artifactId>system-lambda</artifactId>
     <version>1.2.1</version>
 </dependency>
+<!-- https://mvnrepository.com/artifact/org.eclipse.milo/dictionary-manager -->
+<dependency>
+    <groupId>org.eclipse.milo</groupId>
+    <artifactId>dictionary-manager</artifactId>
+    <version>0.6.13</version>
+    <scope>test</scope>
+</dependency>
+
+
+        <dependency>
+            <groupId>org.jetbrains</groupId>
+            <artifactId>annotations</artifactId>
+            <version>22.0.0</version>
+            <scope>provided</scope>
+        </dependency>
 
 	</dependencies>
   
