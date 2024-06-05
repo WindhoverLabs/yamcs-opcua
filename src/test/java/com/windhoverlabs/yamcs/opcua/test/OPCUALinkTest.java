@@ -136,15 +136,10 @@ public class OPCUALinkTest extends AbstractIntegrationTest {
     var refParam = mdbClient.getParameter("/REFMDB/SUBSYS1/IntegerPara1_1_6").get();
   }
 
-  //  @Test
-  //  public void testOPCUALink() {
-  //    System.out.println("setupYamcs*************call3");
-  //    assertEquals(test, "");
-  //  }
-  //
-  //  @Test
-  //  public void testOPCUALink2() {
-  //    System.out.println("setupYamcs*************call4");
-  //    assertEquals(test, "");
-  //  }
+    @Test
+    public void testOPCUALink() {
+      System.out.println("setupYamcs*************call3");
+      assertEquals(test, "");
+    }
+ 
 }
