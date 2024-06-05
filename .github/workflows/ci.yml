@@ -12,7 +12,9 @@ jobs:
         with:
           java-version: 11
       - name: Check coding style
-        run: make check-format 
+        run: make check-format
+      - name: Test
+        run: mvn test 
       - name: Build
         run: mvn -B package
 
