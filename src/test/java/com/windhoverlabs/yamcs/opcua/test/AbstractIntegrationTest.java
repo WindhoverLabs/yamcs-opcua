@@ -32,7 +32,6 @@ import org.yamcs.tctm.TmSink;
 import org.yamcs.tests.AbstractIntegrationTest.PacketProvider;
 import org.yamcs.tests.AbstractIntegrationTest.ParameterProvider;
 import org.yamcs.tests.AbstractIntegrationTest.TcDataLink;
-import org.yamcs.tests.RefMdbPacketGenerator;
 import org.yamcs.utils.FileUtils;
 import org.yamcs.utils.TimeEncoding;
 import org.yamcs.utils.ValueUtility;

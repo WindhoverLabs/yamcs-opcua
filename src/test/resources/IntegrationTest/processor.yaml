@@ -10,13 +10,13 @@ realtime:
         - class: org.yamcs.StreamTcCommandReleaser
         - class: org.yamcs.tctm.StreamParameterProvider
        # implements XTCE algorithms
-        - class: org.yamcs.algorithms.AlgorithmManager
-          args:            
-              libraries:
-                  JavaScript:
-                      - mdb/algolib.js
-                  python:
-                      - mdb/algolib.py
+#        - class: org.yamcs.algorithms.AlgorithmManager
+#          args:            
+#              libraries:
+#                  JavaScript:
+#                      - mdb/algolib.js
+#                  python:
+#                      - mdb/algolib.py
         - class: org.yamcs.parameter.LocalParameterManager
     config:
         subscribeAll: true

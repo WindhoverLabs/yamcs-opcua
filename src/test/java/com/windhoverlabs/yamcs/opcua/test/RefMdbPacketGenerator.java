@@ -26,6 +26,14 @@ import org.yamcs.xtce.SequenceContainer;
  *
  * @author nm
  */
+/**
+ * Generates packets according to the refmdb database.
+ *
+ * <p>Works either as a ProcessorService part of a processor or as TmPacketProvider in the
+ * integration tests
+ *
+ * @author nm
+ */
 public class RefMdbPacketGenerator extends AbstractService implements TmPacketProvider {
   TmProcessor tmProcessor;
   public final int headerLength = 16;
@@ -677,6 +685,56 @@ public class RefMdbPacketGenerator extends AbstractService implements TmPacketPr
     byte[] sb = s.getBytes();
     bb.put(sb, 0, Math.min(20, sb.length));
     bb.put(headerLength + strLength, v);
+    sendToTmProcessor(bb);
+    return bb.array();
+  }
+
+  public byte[] generate_PKT12() {
+    int pkt12Length = headerLength + 100;
+    ByteBuffer bb = ByteBuffer.allocate(pkt12Length);
+    fill_CcsdsHeader(bb, 995, 12);
+
+    // sint32
+    bb.putInt(-1);
+
+    // uint32
+    bb.putInt(0xF0F1F2F3);
+
+    // sint64
+    bb.putLong(-2);
+
+    // uint64
+    bb.putLong(0xF0F1F2F3F4F5F6F7l);
+
+    // double
+    bb.putDouble(3.14);
+
+    // float
+    bb.putFloat(2.72f);
+
+    // boolean
+    bb.put((byte) 1);
+
+    // enum
+    bb.put((byte) 1);
+
+    // string
+    bb.put("bla".getBytes());
+    bb.put((byte) 0);
+
+    // binary
+    bb.put((byte) 5);
+    bb.put(StringConverter.hexStringToArray("0102030405"));
+
+    sendToTmProcessor(bb);
+    return bb.array();
+  }
+
+  public byte[] generate_PKT13() {
+    int pkt13Length = headerLength + 4;
+    ByteBuffer bb = ByteBuffer.allocate(pkt13Length);
+    fill_CcsdsHeader(bb, 995, 13);
+    bb.putFloat(headerLength, 100.100f);
     sendToTmProcessor(bb);
     return bb.array();
   }

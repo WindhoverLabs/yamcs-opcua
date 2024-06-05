@@ -33,12 +33,18 @@ dataLinks:
     stream: tc_realtime
 
 mdb:
+
   #- type: "sheet"
     #args: 
      # file: "mdb/refmdb.xls"
      # enableAliasReferences: false
     # Configuration of the active loaders
     # Valid loaders are: sheet, xtce or fully qualified name of the class
+
+    - type: "sheet"
+      args: 
+       file: "mdb/refmdb.xls"
+       enableAliasReferences: false
     - type: "xtce"
       spec: "mdb/cfs-ccsds.xml"
       subLoaders:
