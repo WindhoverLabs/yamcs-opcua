@@ -1,0 +1,1 @@
+[![CI](https://github.com/WindhoverLabs/yamcs-opcua/actions/workflows/ci.yml/badge.svg)](https://github.com/WindhoverLabs/yamcs-opcua/actions/workflows/ci.yml)
