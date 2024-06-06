@@ -437,7 +437,6 @@ public class OPCUALink extends AbstractLink
             // DataType.PARAMETER_VALUE);
             //                cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(),
             // "PlaceHolder"));
-            columnCount++;
             for (AttributeId attr : AttributeId.VARIABLE_ATTRIBUTES) {
               String value = "";
               if (node.readAttribute(attr).getValue().isNull()) {
