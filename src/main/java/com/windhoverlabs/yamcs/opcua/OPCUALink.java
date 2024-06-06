@@ -166,7 +166,7 @@ public class OPCUALink extends AbstractLink
   //  FIXME:Make the namespace configurable
 
   // /yamcs/<server_id>
-  private String namespace;
+  private String parametersNamespace;
   private String serverId;
   XtceDb mdb;
 
@@ -229,6 +229,7 @@ public class OPCUALink extends AbstractLink
     spec.addOption("class", OptionType.STRING).withRequired(true);
     spec.addOption("opcua_stream", OptionType.STRING).withRequired(true);
     spec.addOption("endpoint_url", OptionType.STRING).withRequired(true);
+    spec.addOption("parameters_namespace", OptionType.STRING).withRequired(true);
 
     return spec;
   }
@@ -254,10 +255,9 @@ public class OPCUALink extends AbstractLink
 
     this.endpointURL = config.getString("endpoint_url");
 
-    mdb = YamcsServer.getServer().getInstance(yamcsInstance).getXtceDb();
+    this.parametersNamespace = config.getString("parameters_namespace");
 
-    //    TODO:Make this configurable
-    namespace = "/instruments/tvac";
+    mdb = YamcsServer.getServer().getInstance(yamcsInstance).getXtceDb();
 
     opcuaInit();
   }
@@ -365,7 +365,7 @@ public class OPCUALink extends AbstractLink
     tdef = gftdef.copy();
     long gentime = timeService.getMissionTime();
     cols.add(gentime);
-    cols.add(namespace);
+    cols.add(parametersNamespace);
     cols.add(0);
     cols.add(gentime);
 
@@ -781,7 +781,7 @@ public class OPCUALink extends AbstractLink
             Parameter p =
                 VariableParam.getForFullyQualifiedName(
                     qualifiedName(
-                        namespace
+                        parametersNamespace
                             + NameDescription.PATH_SEPARATOR
                             + rd.getNodeId().toNodeId(client.getNamespaceTable()).get()
                             + NameDescription.PATH_SEPARATOR
@@ -806,7 +806,7 @@ public class OPCUALink extends AbstractLink
               List<Object> cols = new ArrayList<>(4 + 1);
               long gentime = timeService.getMissionTime();
               cols.add(gentime);
-              cols.add(namespace);
+              cols.add(parametersNamespace);
               cols.add(0);
               cols.add(gentime);
 
@@ -972,7 +972,7 @@ public class OPCUALink extends AbstractLink
               List<Object> cols = new ArrayList<>(4 + 1);
               long gentime = timeService.getMissionTime();
               cols.add(gentime);
-              cols.add(namespace);
+              cols.add(parametersNamespace);
               cols.add(0);
               cols.add(gentime);
 
@@ -1085,7 +1085,7 @@ public class OPCUALink extends AbstractLink
 
     opcuaAttrsType = opcuaAttrsTypeBuidlder.build();
     ((NameDescription) opcuaAttrsType)
-        .setQualifiedName(qualifiedName(namespace, opcuaAttrsType.getName()));
+        .setQualifiedName(qualifiedName(parametersNamespace, opcuaAttrsType.getName()));
   }
 
   private ParameterType OPCUAAttrTypeToParamType(AttributeId attr) {
