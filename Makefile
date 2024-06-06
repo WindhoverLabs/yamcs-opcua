@@ -11,7 +11,7 @@ format:
 	mvn com.coveo:fmt-maven-plugin:format
 
 generate-coverage-reports: build
-	mvn  org.jacoco:jacoco-maven-plugin:report
+	mvn  org.jacoco:jacoco-maven-plugin:report-aggregate
 
 bundle-deps:
 	mvn -DskipTests install dependency:copy-dependencies

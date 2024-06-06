@@ -11,8 +11,6 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
 import org.yamcs.YConfiguration;
 import org.yamcs.YamcsServer;
 import org.yamcs.client.ClientException;
@@ -62,12 +60,12 @@ public abstract class AbstractIntegrationTest {
     // LoggingUtils.enableLogging();
   }
 
-  @BeforeAll
+  //  @BeforeAll
   public static void beforeClass() throws Exception {
     setupYamcs();
   }
 
-  @BeforeEach
+  //  @BeforeEach
   public void before() throws ClientException {
     parameterProvider = ParameterProvider.instance[0];
     assertNotNull(parameterProvider);

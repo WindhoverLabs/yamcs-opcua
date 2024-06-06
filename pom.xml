@@ -165,6 +165,57 @@
 					</execution>
 				</executions>
 			</plugin>-->
+			
+			
+			    <plugin> 
+        <groupId>org.jacoco</groupId>
+        <artifactId>jacoco-maven-plugin</artifactId>
+        <version>0.8.12</version>
+        <configuration>
+            <dataFile>target/jacoco.exec</dataFile>
+            
+        <excludes>
+            <exclude>**org/eclipse/milo/opcua/stack/core/Identifiers*</exclude>
+        </excludes>
+        </configuration>
+        <executions>
+            <execution>
+                <id>pre-unit-test</id>
+                <goals>
+                    <goal>prepare-agent</goal>
+                </goals>
+                <configuration>
+                        <propertyName>jacoco.agent.argLine</propertyName>
+                        <destFile>target/jacoco.exec</destFile>
+                </configuration>
+            </execution>
+            
+            					<execution>
+						<goals>
+							<goal>prepare-agent</goal>
+						</goals>
+					</execution>
+           <execution>
+                <id>default-report</id>
+                <phase>verify</phase>
+                <goals>
+                    <goal>report</goal>
+                </goals>
+            </execution>
+            
+            							<execution>
+								<id>report</id>
+								<goals>
+									<goal>report-aggregate</goal>
+								</goals>
+								<phase>verify</phase>
+							</execution>
+        </executions>
+     </plugin>
+
+			
+			
+			
 			<plugin>
 				<groupId>org.eluder.coveralls</groupId>
 				<artifactId>coveralls-maven-plugin</artifactId>
