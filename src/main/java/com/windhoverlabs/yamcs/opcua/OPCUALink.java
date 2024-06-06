@@ -308,7 +308,7 @@ public class OPCUALink extends AbstractLink
     if (isDisabled()) {
       return String.format("DISABLED");
     } else {
-      return String.format("OK, received %d packets", -1);
+      return String.format("OK, received %d packets", inCount.get());
     }
   }
 
