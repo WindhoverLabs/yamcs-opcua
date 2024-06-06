@@ -46,6 +46,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -130,14 +131,7 @@ public class OPCUALink extends AbstractLink
     }
 
     public int hashCode() {
-      /**
-       * The reason we don't use the hash() function from NodeID class is because it uses the
-       * generic hash(), maybe...
-       */
-      //      int hash = this.nodeID.toParseableString().hashCode() + this.attrID.hashCode();
-      int hash = this.nodeID.hashCode() + this.attrID.hashCode();
-
-      return hash;
+      return Objects.hash(this.nodeID, this.attrID);
     }
 
     public boolean equals(Object obj) {
@@ -224,6 +218,8 @@ public class OPCUALink extends AbstractLink
 
   protected AtomicLong inCount = new AtomicLong(0);
 
+  private String endpointURL;
+
   @Override
   public Spec getSpec() {
     Spec spec = new Spec();
@@ -232,6 +228,7 @@ public class OPCUALink extends AbstractLink
     spec.addOption("name", OptionType.STRING).withRequired(true);
     spec.addOption("class", OptionType.STRING).withRequired(true);
     spec.addOption("opcua_stream", OptionType.STRING).withRequired(true);
+    spec.addOption("endpoint_url", OptionType.STRING).withRequired(true);
 
     return spec;
   }
@@ -254,6 +251,8 @@ public class OPCUALink extends AbstractLink
     this.opcuaStreamName = config.getString("opcua_stream");
 
     opcuaStream = getStream(ydb, opcuaStreamName);
+
+    this.endpointURL = config.getString("endpoint_url");
 
     mdb = YamcsServer.getServer().getInstance(yamcsInstance).getXtceDb();
 
@@ -714,8 +713,8 @@ public class OPCUALink extends AbstractLink
     trustListManager = new DefaultTrustListManager(pkiDir);
 
     //    FIXME:Make url configurable
-    List<EndpointDescription> endpoint =
-        DiscoveryClient.getEndpoints("opc.tcp://localhost:4840/").get();
+    //    endpointURL = "opc.tcp://localhost:4840/";
+    List<EndpointDescription> endpoint = DiscoveryClient.getEndpoints(endpointURL).get();
 
     OpcUaClientConfig builder = OpcUaClientConfig.builder().setEndpoint(endpoint.get(0)).build();
 
