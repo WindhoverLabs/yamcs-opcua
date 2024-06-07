@@ -725,7 +725,10 @@ public class OPCUALink extends AbstractLink implements Runnable {
                     qualifiedName(
                         parametersNamespace
                             + NameDescription.PATH_SEPARATOR
-                            + rd.getNodeId().toNodeId(client.getNamespaceTable()).get()
+                            + rd.getNodeId()
+                                .toNodeId(client.getNamespaceTable())
+                                .get()
+                                .toParseableString()
                             + NameDescription.PATH_SEPARATOR
                             + rd.getNodeClass()
                             + NameDescription.PATH_SEPARATOR

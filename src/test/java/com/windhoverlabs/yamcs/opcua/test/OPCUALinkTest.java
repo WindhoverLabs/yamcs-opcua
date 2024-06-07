@@ -70,15 +70,6 @@ public class OPCUALinkTest extends AbstractOPCUAIntegrationTest {
     }
   }
 
-  //
-  //  @Test
-  //  public void testMdbParameters() throws InterruptedException, ExecutionException {
-  //    //	  FIXME:Add OPCUA-specific test.
-  //    var mdbClient = yamcsClient.createMissionDatabaseClient(yamcsInstance);
-  //
-  //    var refParam = mdbClient.getParameter("/REFMDB/SUBSYS1/IntegerPara1_1_6").get();
-  //  }
-
   @Test
   public void testOPCUALink() throws Exception {
     assertEquals(test, "");
@@ -88,13 +79,13 @@ public class OPCUALinkTest extends AbstractOPCUAIntegrationTest {
     var refParam =
         mdbClient
             .getParameter(
-                "/instruments/tvac/NodeId{ns=2, id=HelloWorld/Dynamic/Boolean}/Variable/Boolean/Value")
+                "/instruments/tvac/ns=2;s=HelloWorld/Dynamic/Boolean/Variable/Boolean/Value")
             .get(200, TimeUnit.MILLISECONDS);
     assertNotNull(refParam);
 
     assertEquals(
         refParam.getQualifiedName(),
-        "/instruments/tvac/NodeId{ns=2, id=HelloWorld/Dynamic/Boolean}/Variable/Boolean/Value");
+        "/instruments/tvac/ns=2;s=HelloWorld/Dynamic/Boolean/Variable/Boolean/Value");
 
     OPCUALink l =
         (OPCUALink)
