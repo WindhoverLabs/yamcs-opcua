@@ -74,8 +74,6 @@ public class OPCUALinkTest extends AbstractOPCUAIntegrationTest {
 
   @Test
   public void testOPCUALink() throws Exception {
-
-    super.before();
     try {
       try {
         opcuaServer = ExampleServer.initServer();
@@ -87,6 +85,8 @@ public class OPCUALinkTest extends AbstractOPCUAIntegrationTest {
       // TODO Auto-generated catch block
       e.printStackTrace();
     }
+    super.before();
+
     var mdbClient = yamcsClient.createMissionDatabaseClient(yamcsInstance);
 
     var refParam =
@@ -121,7 +121,8 @@ public class OPCUALinkTest extends AbstractOPCUAIntegrationTest {
     assertEquals(l.connectionStatus(), Status.DISABLED);
     assertEquals("DISABLED", l.getDetailedStatus());
 
-    opcuaServer.shutdown();
     super.after();
+
+    opcuaServer.shutdown();
   }
 }
