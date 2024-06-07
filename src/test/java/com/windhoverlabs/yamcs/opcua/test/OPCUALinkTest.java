@@ -5,15 +5,21 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
+import com.google.gson.JsonObject;
+import com.windhoverlabs.yamcs.opcua.OPCUALink;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.yamcs.YamcsServer;
 import org.yamcs.client.processor.ProcessorClient;
 import org.yamcs.protobuf.Pvalue.AcquisitionStatus;
 import org.yamcs.protobuf.Pvalue.ParameterValue;
 import org.yamcs.protobuf.Yamcs.NamedObjectId;
 import org.yamcs.protobuf.Yamcs.Value;
 import org.yamcs.protobuf.Yamcs.Value.Type;
+import org.yamcs.tctm.Link.Status;
+import org.yamcs.tctm.LinkAction;
 
 /** Unit test for simple App. */
 public class OPCUALinkTest extends AbstractOPCUAIntegrationTest {
@@ -134,11 +140,33 @@ public class OPCUALinkTest extends AbstractOPCUAIntegrationTest {
     assertEquals(test, "");
 
     var mdbClient = yamcsClient.createMissionDatabaseClient(yamcsInstance);
-    //
+
     var refParam =
         mdbClient
             .getParameter(
                 "/instruments/tvac/NodeId{ns=2, id=HelloWorld/Dynamic/Boolean}/Variable/Boolean/Value")
-            .get();
+            .get(200, TimeUnit.MILLISECONDS);
+    assertNotNull(refParam);
+
+    OPCUALink l =
+        (OPCUALink)
+            YamcsServer.getServer().getInstance(yamcsInstance).getLinkManager().getLink("tm_ocpua");
+
+    assertEquals(l.getLinkStatus(), Status.OK);
+
+    assertEquals(l.connectionStatus(), Status.OK);
+
+    LinkAction action = l.getAction("query_all");
+
+    assertNotNull(action);
+
+    action.execute(l, new JsonObject());
+
+    Thread.sleep(2000);
+
+    l.resetCounters();
+    l.doDisable();
+    assertEquals(l.connectionStatus(), Status.DISABLED);
+    assertEquals("DISABLED", l.getDetailedStatus());
   }
 }

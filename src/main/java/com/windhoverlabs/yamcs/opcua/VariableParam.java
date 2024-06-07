@@ -3,7 +3,6 @@ package com.windhoverlabs.yamcs.opcua;
 import org.yamcs.xtce.DataSource;
 import org.yamcs.xtce.NameDescription;
 import org.yamcs.xtce.Parameter;
-import org.yamcs.xtce.XtceDb;
 
 public class VariableParam extends Parameter {
   private static final long serialVersionUID = 2L;
@@ -15,7 +14,7 @@ public class VariableParam extends Parameter {
   }
 
   public static VariableParam getForFullyQualifiedName(String fqname) {
-    DataSource ds = getSystemParameterDataSource(fqname);
+    DataSource ds = getVariableParameterDataSource(fqname);
     VariableParam sp =
         new VariableParam(
             NameDescription.getSubsystemName(fqname), NameDescription.getName(fqname), ds);
@@ -28,14 +27,8 @@ public class VariableParam extends Parameter {
     return sp;
   }
 
-  private static DataSource getSystemParameterDataSource(String fqname) {
-    if (fqname.startsWith(XtceDb.YAMCS_CMD_SPACESYSTEM_NAME)) {
-      return DataSource.COMMAND;
-    } else if (fqname.startsWith(XtceDb.YAMCS_CMDHIST_SPACESYSTEM_NAME)) {
-      return DataSource.COMMAND_HISTORY;
-    } else {
-      return DataSource.TELEMETERED;
-    }
+  private static DataSource getVariableParameterDataSource(String fqname) {
+    return DataSource.TELEMETERED;
   }
 
   @Override

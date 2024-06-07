@@ -83,9 +83,6 @@ import org.yamcs.ValidationException;
 import org.yamcs.YConfiguration;
 import org.yamcs.YamcsServer;
 import org.yamcs.parameter.ParameterValue;
-import org.yamcs.parameter.SystemParametersProducer;
-import org.yamcs.parameter.SystemParametersService;
-import org.yamcs.parameter.Value;
 import org.yamcs.protobuf.Yamcs;
 import org.yamcs.protobuf.Yamcs.Value.Type;
 import org.yamcs.tctm.AbstractLink;
@@ -94,32 +91,22 @@ import org.yamcs.tctm.LinkAction;
 import org.yamcs.tctm.PacketInputStream;
 import org.yamcs.tctm.ParameterSink;
 import org.yamcs.utils.ValueUtility;
-import org.yamcs.xtce.AbsoluteTimeParameterType;
 import org.yamcs.xtce.AggregateParameterType;
-import org.yamcs.xtce.BaseDataType;
-import org.yamcs.xtce.BinaryParameterType;
-import org.yamcs.xtce.BooleanParameterType;
-import org.yamcs.xtce.EnumeratedParameterType;
-import org.yamcs.xtce.FloatParameterType;
-import org.yamcs.xtce.IntegerParameterType;
 import org.yamcs.xtce.Member;
 import org.yamcs.xtce.NameDescription;
 import org.yamcs.xtce.Parameter;
 import org.yamcs.xtce.ParameterType;
 import org.yamcs.xtce.StringParameterType;
-import org.yamcs.xtce.UnitType;
 import org.yamcs.xtce.XtceDb;
 import org.yamcs.yarch.DataType;
 import org.yamcs.yarch.FileSystemBucket;
 import org.yamcs.yarch.Stream;
-import org.yamcs.yarch.StreamSubscriber;
 import org.yamcs.yarch.Tuple;
 import org.yamcs.yarch.TupleDefinition;
 import org.yamcs.yarch.YarchDatabase;
 import org.yamcs.yarch.YarchDatabaseInstance;
 
-public class OPCUALink extends AbstractLink
-    implements Runnable, StreamSubscriber, SystemParametersProducer {
+public class OPCUALink extends AbstractLink implements Runnable {
 
   class NodeIDAttrPair {
     NodeId nodeID;
@@ -220,6 +207,8 @@ public class OPCUALink extends AbstractLink
 
   private String endpointURL;
 
+  private Status linkStatus = Status.OK;
+
   @Override
   public Spec getSpec() {
     Spec spec = new Spec();
@@ -292,6 +281,8 @@ public class OPCUALink extends AbstractLink
     if (thread != null) {
       thread.interrupt();
     }
+
+    linkStatus = Status.DISABLED;
   }
 
   @Override
@@ -300,6 +291,7 @@ public class OPCUALink extends AbstractLink
     thread = new Thread(this);
     thread.setName(this.getClass().getSimpleName() + "-" + linkName);
     thread.start();
+    linkStatus = Status.OK;
   }
 
   @Override
@@ -312,8 +304,8 @@ public class OPCUALink extends AbstractLink
   }
 
   @Override
-  protected Status connectionStatus() {
-    return Status.OK;
+  public Status connectionStatus() {
+    return linkStatus;
   }
 
   @Override
@@ -395,43 +387,43 @@ public class OPCUALink extends AbstractLink
             // DataType.PARAMETER_VALUE);
             //                cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(),
             // "PlaceHolder"));
-            columnCount++;
-            break;
+            //            columnCount++;
+            //            break;
           case Method:
             //                tdef.addColumn(pair.getValue().getQualifiedName(),
             // DataType.PARAMETER_VALUE);
             //                cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(),
             // "PlaceHolder"));
-            columnCount++;
-            break;
+            //            columnCount++;
+            //            break;
           case Object:
             //                tdef.addColumn(pair.getValue().getQualifiedName(),
             // DataType.PARAMETER_VALUE);
             //                cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(),
             // "PlaceHolder"));
-            columnCount++;
-            break;
+            //            columnCount++;
+            //            break;
           case ObjectType:
             //                tdef.addColumn(pair.getValue().getQualifiedName(),
             // DataType.PARAMETER_VALUE);
             //                cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(),
             // "PlaceHolder"));
-            columnCount++;
-            break;
+            //            columnCount++;
+            //            break;
           case ReferenceType:
             //                tdef.addColumn(pair.getValue().getQualifiedName(),
             // DataType.PARAMETER_VALUE);
             //                cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(),
             // "PlaceHolder"));
-            columnCount++;
-            break;
+            //            columnCount++;
+            //            break;
           case Unspecified:
             //                tdef.addColumn(pair.getValue().getQualifiedName(),
             // DataType.PARAMETER_VALUE);
             //                cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(),
             // "PlaceHolder"));
-            columnCount++;
-            break;
+            //            columnCount++;
+            //            break;
           case Variable:
             //                tdef.addColumn(pair.getValue().getQualifiedName(),
             // DataType.PARAMETER_VALUE);
@@ -452,22 +444,24 @@ public class OPCUALink extends AbstractLink
               columnCount++;
             }
             break;
-          case VariableType:
-            //                tdef.addColumn(pair.getValue().getQualifiedName(),
-            // DataType.PARAMETER_VALUE);
-            //                cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(),
-            // "PlaceHolder"));
-            columnCount++;
-            break;
-          case View:
-            //                tdef.addColumn(pair.getValue().getQualifiedName(),
-            // DataType.PARAMETER_VALUE);
-            //                cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(),
-            // "PlaceHolder"));
-            columnCount++;
-            break;
-          default:
-            break;
+            //          case VariableType:
+            //            //                tdef.addColumn(pair.getValue().getQualifiedName(),
+            //            // DataType.PARAMETER_VALUE);
+            //            //                cols.add(getPV(pair.getValue(),
+            // Instant.now().toEpochMilli(),
+            //            // "PlaceHolder"));
+            //            //            columnCount++;
+            ////            break;
+            //          case View:
+            //            //                tdef.addColumn(pair.getValue().getQualifiedName(),
+            //            // DataType.PARAMETER_VALUE);
+            //            //                cols.add(getPV(pair.getValue(),
+            // Instant.now().toEpochMilli(),
+            //            // "PlaceHolder"));
+            //            //            columnCount++;
+            ////            break;
+            //          default:
+            //            break;
         }
 
       } catch (UaException e) {
@@ -489,19 +483,7 @@ public class OPCUALink extends AbstractLink
   }
 
   private static ParameterType getOrCreateType(
-      XtceDb mdb, String name, UnitType unit, Supplier<ParameterType.Builder<?>> supplier) {
-
-    String units;
-    if (unit != null) {
-      units = unit.getUnit();
-      if (!"1".equals(unit.getFactor())) {
-        units = unit.getFactor() + "x" + units;
-      }
-      if (unit.getPower() != 1) {
-        units = units + "^" + unit.getPower();
-      }
-      name = name + "_" + units.replaceAll("/", "_");
-    }
+      XtceDb mdb, String name, Supplier<ParameterType.Builder<?>> supplier) {
 
     String fqn = XtceDb.YAMCS_SPACESYSTEM_NAME + NameDescription.PATH_SEPARATOR + name;
     ParameterType ptype = mdb.getParameterType(fqn);
@@ -509,9 +491,6 @@ public class OPCUALink extends AbstractLink
       return ptype;
     }
     ParameterType.Builder<?> typeb = supplier.get().setName(name);
-    if (unit != null) {
-      ((BaseDataType.Builder<?>) typeb).addUnit(unit);
-    }
 
     ptype = typeb.build();
     ((NameDescription) ptype).setQualifiedName(fqn);
@@ -519,85 +498,59 @@ public class OPCUALink extends AbstractLink
     return mdb.addSystemParameterType(ptype);
   }
 
-  public static ParameterType getBasicType(XtceDb mdb, Type type, UnitType unit) {
-
+  public static ParameterType getBasicType(XtceDb mdb, Type type) {
+    ParameterType pType = null;
     switch (type) {
-      case BINARY:
-        return getOrCreateType(mdb, "binary", unit, () -> new BinaryParameterType.Builder());
-      case BOOLEAN:
-        return getOrCreateType(mdb, "boolean", unit, () -> new BooleanParameterType.Builder());
+        //      case BINARY:
+        //        return getOrCreateType(mdb, "binary", unit, () -> new
+        // BinaryParameterType.Builder());
+        //      case BOOLEAN:
+        //        return getOrCreateType(mdb, "boolean", unit, () -> new
+        // BooleanParameterType.Builder());
       case STRING:
-        return getOrCreateType(mdb, "string", unit, () -> new StringParameterType.Builder());
-      case FLOAT:
-        return getOrCreateType(
-            mdb, "float32", unit, () -> new FloatParameterType.Builder().setSizeInBits(32));
-      case DOUBLE:
-        return getOrCreateType(
-            mdb, "float64", unit, () -> new FloatParameterType.Builder().setSizeInBits(64));
-      case SINT32:
-        return getOrCreateType(
-            mdb,
-            "sint32",
-            unit,
-            () -> new IntegerParameterType.Builder().setSizeInBits(32).setSigned(true));
-      case SINT64:
-        return getOrCreateType(
-            mdb,
-            "sint64",
-            unit,
-            () -> new IntegerParameterType.Builder().setSizeInBits(64).setSigned(true));
-      case UINT32:
-        return getOrCreateType(
-            mdb,
-            "uint32",
-            unit,
-            () -> new IntegerParameterType.Builder().setSizeInBits(32).setSigned(false));
-      case UINT64:
-        return getOrCreateType(
-            mdb,
-            "uint64",
-            unit,
-            () -> new IntegerParameterType.Builder().setSizeInBits(64).setSigned(false));
-      case TIMESTAMP:
-        return getOrCreateType(mdb, "time", unit, () -> new AbsoluteTimeParameterType.Builder());
-      case ENUMERATED:
-        return getOrCreateType(mdb, "enum", unit, () -> new EnumeratedParameterType.Builder());
-      default:
-        throw new IllegalArgumentException(type + "is not a basic type");
+        pType = getOrCreateType(mdb, "string", () -> new StringParameterType.Builder());
+        break;
+        //      case FLOAT:
+        //        return getOrCreateType(
+        //            mdb, "float32", unit, () -> new
+        // FloatParameterType.Builder().setSizeInBits(32));
+        //      case DOUBLE:
+        //        return getOrCreateType(
+        //            mdb, "float64", unit, () -> new
+        // FloatParameterType.Builder().setSizeInBits(64));
+        //      case SINT32:
+        //        return getOrCreateType(
+        //            mdb,
+        //            "sint32",
+        //            unit,
+        //            () -> new IntegerParameterType.Builder().setSizeInBits(32).setSigned(true));
+        //      case SINT64:
+        //        return getOrCreateType(
+        //            mdb,
+        //            "sint64",
+        //            unit,
+        //            () -> new IntegerParameterType.Builder().setSizeInBits(64).setSigned(true));
+        //      case UINT32:
+        //        return getOrCreateType(
+        //            mdb,
+        //            "uint32",
+        //            unit,
+        //            () -> new IntegerParameterType.Builder().setSizeInBits(32).setSigned(false));
+        //      case UINT64:
+        //        return getOrCreateType(
+        //            mdb,
+        //            "uint64",
+        //            unit,
+        //            () -> new IntegerParameterType.Builder().setSizeInBits(64).setSigned(false));
+        //      case TIMESTAMP:
+        //        return getOrCreateType(mdb, "time", unit, () -> new
+        // AbsoluteTimeParameterType.Builder());
+        //      case ENUMERATED:
+        //        return getOrCreateType(mdb, "enum", unit, () -> new
+        // EnumeratedParameterType.Builder());
     }
-  }
 
-  @Override
-  public void onTuple(Stream stream, Tuple tuple) {}
-
-  @Override
-  public void setupSystemParameters(SystemParametersService sysParamCollector) {
-    super.setupSystemParameters(sysParamCollector);
-    OPCUAServerStatus =
-        sysParamCollector.createSystemParameter(
-            linkName + "/outOfSync",
-            Yamcs.Value.Type.BOOLEAN,
-            "Are the downlinked events not in sync wtih the ones from the log?");
-  }
-
-  @Override
-  public List<ParameterValue> getSystemParameters() {
-    long time = getCurrentTime();
-
-    ArrayList<ParameterValue> list = new ArrayList<>();
-    try {
-      collectSystemParameters(time, list);
-    } catch (Exception e) {
-      log.error("Exception caught when collecting link system parameters", e);
-    }
-    return list;
-  }
-
-  @Override
-  protected void collectSystemParameters(long time, List<ParameterValue> list) {
-    super.collectSystemParameters(time, list);
-    //    FIXME
-    //    list.add(SystemParametersService.getPV(OPCUAServerStatus, time, outOfSync));
+    return pType;
   }
 
   public static ParameterValue getNewPv(Parameter parameter, long time) {
@@ -613,47 +566,47 @@ public class OPCUALink extends AbstractLink
     return pv;
   }
 
-  public static ParameterValue getPV(Parameter parameter, long time, double v) {
-    ParameterValue pv = getNewPv(parameter, time);
-    pv.setEngValue(ValueUtility.getDoubleValue(v));
-    return pv;
-  }
-
-  public static ParameterValue getPV(Parameter parameter, long time, float v) {
-    ParameterValue pv = getNewPv(parameter, time);
-    pv.setEngValue(ValueUtility.getFloatValue(v));
-    return pv;
-  }
-
-  public static ParameterValue getPV(Parameter parameter, long time, boolean v) {
-    ParameterValue pv = getNewPv(parameter, time);
-    pv.setEngValue(ValueUtility.getBooleanValue(v));
-    return pv;
-  }
-
-  public static ParameterValue getPV(Parameter parameter, long time, long v) {
-    ParameterValue pv = getNewPv(parameter, time);
-    pv.setEngValue(ValueUtility.getSint64Value(v));
-    return pv;
-  }
-
-  public static ParameterValue getUnsignedIntPV(Parameter parameter, long time, int v) {
-    ParameterValue pv = getNewPv(parameter, time);
-    pv.setEngValue(ValueUtility.getUint64Value(v));
-    return pv;
-  }
-
-  public static <T extends Enum<T>> ParameterValue getPV(Parameter parameter, long time, T v) {
-    ParameterValue pv = getNewPv(parameter, time);
-    pv.setEngValue(ValueUtility.getEnumeratedValue(v.ordinal(), v.name()));
-    return pv;
-  }
-
-  public static ParameterValue getPV(Parameter parameter, long time, Value v) {
-    ParameterValue pv = getNewPv(parameter, time);
-    pv.setEngValue(v);
-    return pv;
-  }
+  //  public static ParameterValue getPV(Parameter parameter, long time, double v) {
+  //    ParameterValue pv = getNewPv(parameter, time);
+  //    pv.setEngValue(ValueUtility.getDoubleValue(v));
+  //    return pv;
+  //  }
+  //
+  //  public static ParameterValue getPV(Parameter parameter, long time, float v) {
+  //    ParameterValue pv = getNewPv(parameter, time);
+  //    pv.setEngValue(ValueUtility.getFloatValue(v));
+  //    return pv;
+  //  }
+  //
+  //  public static ParameterValue getPV(Parameter parameter, long time, boolean v) {
+  //    ParameterValue pv = getNewPv(parameter, time);
+  //    pv.setEngValue(ValueUtility.getBooleanValue(v));
+  //    return pv;
+  //  }
+  //
+  //  public static ParameterValue getPV(Parameter parameter, long time, long v) {
+  //    ParameterValue pv = getNewPv(parameter, time);
+  //    pv.setEngValue(ValueUtility.getSint64Value(v));
+  //    return pv;
+  //  }
+  //
+  //  public static ParameterValue getUnsignedIntPV(Parameter parameter, long time, int v) {
+  //    ParameterValue pv = getNewPv(parameter, time);
+  //    pv.setEngValue(ValueUtility.getUint64Value(v));
+  //    return pv;
+  //  }
+  //
+  //  public static <T extends Enum<T>> ParameterValue getPV(Parameter parameter, long time, T v) {
+  //    ParameterValue pv = getNewPv(parameter, time);
+  //    pv.setEngValue(ValueUtility.getEnumeratedValue(v.ordinal(), v.name()));
+  //    return pv;
+  //  }
+  //
+  //  public static ParameterValue getPV(Parameter parameter, long time, Value v) {
+  //    ParameterValue pv = getNewPv(parameter, time);
+  //    pv.setEngValue(v);
+  //    return pv;
+  //  }
 
   @Override
   public Status getLinkStatus() {
@@ -662,21 +615,9 @@ public class OPCUALink extends AbstractLink
   }
 
   @Override
-  public void enable() {
-    // TODO Auto-generated method stub
-
-  }
-
-  @Override
-  public void disable() {
-    // TODO Auto-generated method stub
-
-  }
-
-  @Override
   public boolean isDisabled() {
     // TODO Auto-generated method stub
-    return false;
+    return linkStatus == Status.DISABLED;
   }
 
   @Override
@@ -776,7 +717,7 @@ public class OPCUALink extends AbstractLink
 
           for (AttributeId attr : AttributeId.values()) {
 
-            ParameterType ptype = getBasicType(mdb, Yamcs.Value.Type.STRING, null);
+            ParameterType ptype = getBasicType(mdb, Yamcs.Value.Type.STRING);
             Parameter p =
                 VariableParam.getForFullyQualifiedName(
                     qualifiedName(
@@ -887,28 +828,28 @@ public class OPCUALink extends AbstractLink
       }
       try {
         switch (NodeClass.from((int) nodeClass.getValue())) {
-          case DataType:
-            break;
-          case Method:
-            break;
-          case Object:
-            break;
-          case ObjectType:
-            break;
-          case ReferenceType:
-            break;
-          case Unspecified:
-            break;
+            //          case DataType:
+            //            break;
+            //          case Method:
+            //            break;
+            //          case Object:
+            //            break;
+            //          case ObjectType:
+            //            break;
+            //          case ReferenceType:
+            //            break;
+            //          case Unspecified:
+            //            break;
           case Variable:
             ManagedDataItem dataItem = opcuaSubscription.createDataItem(id);
             log.debug("Status code for dataItem:{}", dataItem.getStatusCode());
             break;
-          case VariableType:
-            break;
-          case View:
-            break;
-          default:
-            break;
+            //          case VariableType:
+            //            break;
+            //          case View:
+            //            break;
+            //          default:
+            //            break;
         }
       } catch (UaException e) {
         // TODO Auto-generated catch block
@@ -1035,26 +976,10 @@ public class OPCUALink extends AbstractLink
                 opcuaStream.emitTuple(t);
                 inCount.getAndAdd(1);
               } else {
-                tdef.addColumn(
-                    nodeIDToParamsMap.get(nodeAttrKey).getQualifiedName(),
-                    DataType.PARAMETER_VALUE);
-
-                cols.add(
-                    getPV(
-                        nodeIDToParamsMap.get(nodeAttrKey),
-                        Instant.now().toEpochMilli(),
-                        "PlaceHolder**"));
-
-                log.info(
-                    "Data({}) chnage triggered for {} and pushing placeholder PV",
-                    values.get(i).getValue(),
+                // TODO:Add some type emptyValue count for OPS.
+                log.warn(
+                    "Data chnage triggered for {}, but it empty. This should not happen.",
                     nodeIDToParamsMap.get(nodeAttrKey).getQualifiedName());
-
-                Tuple t = new Tuple(tdef, cols);
-
-                //                opcuaStream.emitTuple(t);
-
-                //                inCount.getAndAdd(1);
               }
             }
           });
@@ -1078,8 +1003,7 @@ public class OPCUALink extends AbstractLink
 
     opcuaAttrsTypeBuidlder.setName("OPCUObjectAttributes");
     for (AttributeId attr : AttributeId.values()) {
-      opcuaAttrsTypeBuidlder.addMember(
-          new Member(attr.toString(), getBasicType(mdb, Type.STRING, null)));
+      opcuaAttrsTypeBuidlder.addMember(new Member(attr.toString(), getBasicType(mdb, Type.STRING)));
     }
 
     opcuaAttrsType = opcuaAttrsTypeBuidlder.build();
@@ -1087,63 +1011,63 @@ public class OPCUALink extends AbstractLink
         .setQualifiedName(qualifiedName(parametersNamespace, opcuaAttrsType.getName()));
   }
 
-  private ParameterType OPCUAAttrTypeToParamType(AttributeId attr) {
-    ParameterType pType = null;
-
-    switch (attr) {
-      case AccessLevel:
-        break;
-      case ArrayDimensions:
-        break;
-      case BrowseName:
-        pType = getBasicType(mdb, Type.STRING, null);
-        break;
-      case ContainsNoLoops:
-        break;
-      case DataType:
-        break;
-      case Description:
-        pType = getBasicType(mdb, Type.STRING, null);
-        break;
-      case DisplayName:
-        pType = getBasicType(mdb, Type.STRING, null);
-        break;
-      case EventNotifier:
-        break;
-      case Executable:
-        break;
-      case Historizing:
-        break;
-      case InverseName:
-        pType = getBasicType(mdb, Type.STRING, null);
-        break;
-      case IsAbstract:
-        break;
-      case MinimumSamplingInterval:
-        break;
-      case NodeClass:
-        break;
-      case NodeId:
-        pType = getBasicType(mdb, Type.STRING, null);
-        break;
-      case Symmetric:
-        break;
-      case UserAccessLevel:
-        break;
-      case UserExecutable:
-        break;
-      case UserWriteMask:
-        break;
-      case Value:
-        break;
-      case ValueRank:
-        break;
-      case WriteMask:
-        break;
-      default:
-        break;
-    }
-
-    return pType;
-  }
+  //  private ParameterType OPCUAAttrTypeToParamType(AttributeId attr) {
+  //    ParameterType pType = null;
+  //
+  //    switch (attr) {
+  //      case AccessLevel:
+  //        break;
+  //      case ArrayDimensions:
+  //        break;
+  //      case BrowseName:
+  //        pType = getBasicType(mdb, Type.STRING, null);
+  //        break;
+  //      case ContainsNoLoops:
+  //        break;
+  //      case DataType:
+  //        break;
+  //      case Description:
+  //        pType = getBasicType(mdb, Type.STRING, null);
+  //        break;
+  //      case DisplayName:
+  //        pType = getBasicType(mdb, Type.STRING, null);
+  //        break;
+  //      case EventNotifier:
+  //        break;
+  //      case Executable:
+  //        break;
+  //      case Historizing:
+  //        break;
+  //      case InverseName:
+  //        pType = getBasicType(mdb, Type.STRING, null);
+  //        break;
+  //      case IsAbstract:
+  //        break;
+  //      case MinimumSamplingInterval:
+  //        break;
+  //      case NodeClass:
+  //        break;
+  //      case NodeId:
+  //        pType = getBasicType(mdb, Type.STRING, null);
+  //        break;
+  //      case Symmetric:
+  //        break;
+  //      case UserAccessLevel:
+  //        break;
+  //      case UserExecutable:
+  //        break;
+  //      case UserWriteMask:
+  //        break;
+  //      case Value:
+  //        break;
+  //      case ValueRank:
+  //        break;
+  //      case WriteMask:
+  //        break;
+  //      default:
+  //        break;
+  //    }
+  //
+  //    return pType;
+  //  }
 }
