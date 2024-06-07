@@ -131,21 +131,14 @@ public class OPCUALinkTest extends AbstractOPCUAIntegrationTest {
 
   @Test
   public void testOPCUALink() throws Exception {
-    System.out.println("setupYamcs*************call3");
     assertEquals(test, "");
-    //    beforeClass();
-    //    before();
 
-    //    var mdbClient = yamcsClient.createMissionDatabaseClient(yamcsInstance);
+    var mdbClient = yamcsClient.createMissionDatabaseClient(yamcsInstance);
     //
-    //    var refParam =
-    //        mdbClient
-    //            .getParameter(
-    //                "/instruments/tvac/NodeId{ns=2,
-    // id=HelloWorld/Dynamic/Double}/Variable/Double/Value")
-    //            .get();
-
-    //    System.out.println("refParam-->" + refParam);
-    //    new OPCUALink();
+    var refParam =
+        mdbClient
+            .getParameter(
+                "/instruments/tvac/NodeId{ns=2, id=HelloWorld/Dynamic/Boolean}/Variable/Boolean/Value")
+            .get();
   }
 }
