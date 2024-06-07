@@ -10,12 +10,9 @@ import java.util.List;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.yamcs.YConfiguration;
 import org.yamcs.YamcsServer;
-import org.yamcs.client.ClientException;
 import org.yamcs.client.ConnectionListener;
 import org.yamcs.client.YamcsClient;
 import org.yamcs.commanding.PreparedCommand;
@@ -58,31 +55,18 @@ public abstract class AbstractOPCUAIntegrationTest {
   RefMdbPacketGenerator packetGenerator2; // sends data to tm2_realtime
   static YamcsServer yamcs;
 
-  private static ExampleServer opcuaServer = null;
-
   static {
     // LoggingUtils.enableLogging();
   }
 
-  @BeforeAll
-  public static void beforeClass() throws Exception {
-
-    try {
-      try {
-        opcuaServer = ExampleServer.initServer();
-      } catch (Exception e) {
-        // TODO Auto-generated catch block
-        e.printStackTrace();
-      }
-    } catch (Exception e) {
-      // TODO Auto-generated catch block
-      e.printStackTrace();
-    }
-    setupYamcs();
+  @BeforeEach
+  public void beforeClass() throws Exception {
+    //    setupYamcs();
   }
 
-  @BeforeEach
-  public void before() throws ClientException {
+  //  @BeforeEach
+  public void before() throws Exception {
+    setupYamcs();
     parameterProvider = ParameterProvider.instance[0];
     assertNotNull(parameterProvider);
 
@@ -107,7 +91,7 @@ public abstract class AbstractOPCUAIntegrationTest {
         .clearAll();
   }
 
-  protected static void setupYamcs() throws Exception {
+  protected void setupYamcs() throws Exception {
     Path dataDir = Path.of(System.getProperty("java.io.tmpdir"), "yamcs-IntegrationTest-data");
     FileUtils.deleteRecursivelyIfExists(dataDir);
 
@@ -118,16 +102,16 @@ public abstract class AbstractOPCUAIntegrationTest {
     yamcs.start();
   }
 
-  @AfterEach
+  //  @AfterEach
   public void after() throws InterruptedException {
     yamcsClient.close();
     assertTrue(connectionListener.onDisconnect.tryAcquire(5, TimeUnit.SECONDS));
+    YamcsServer.getServer().shutDown();
   }
 
   @AfterAll
   public static void shutDownYamcs() throws Exception {
-    YamcsServer.getServer().shutDown();
-    opcuaServer.shutdown();
+    //    YamcsServer.getServer().shutDown();
   }
 
   void generatePkt13AndPps(String utcStart, int numPackets) {

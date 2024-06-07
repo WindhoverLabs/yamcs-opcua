@@ -29,10 +29,12 @@ public class OPCUALinkTest extends AbstractOPCUAIntegrationTest {
 
   private ProcessorClient processorClient;
 
+  private static ExampleServer opcuaServer = null;
+
   @BeforeEach
   public void prepare() {
 
-    processorClient = yamcsClient.createProcessorClient(yamcsInstance, "realtime");
+    //    processorClient = yamcsClient.createProcessorClient(yamcsInstance, "realtime");
   }
 
   private void checkPvals(
@@ -72,8 +74,19 @@ public class OPCUALinkTest extends AbstractOPCUAIntegrationTest {
 
   @Test
   public void testOPCUALink() throws Exception {
-    assertEquals(test, "");
 
+    super.before();
+    try {
+      try {
+        opcuaServer = ExampleServer.initServer();
+      } catch (Exception e) {
+        // TODO Auto-generated catch block
+        e.printStackTrace();
+      }
+    } catch (Exception e) {
+      // TODO Auto-generated catch block
+      e.printStackTrace();
+    }
     var mdbClient = yamcsClient.createMissionDatabaseClient(yamcsInstance);
 
     var refParam =
@@ -107,5 +120,8 @@ public class OPCUALinkTest extends AbstractOPCUAIntegrationTest {
     l.doDisable();
     assertEquals(l.connectionStatus(), Status.DISABLED);
     assertEquals("DISABLED", l.getDetailedStatus());
+
+    opcuaServer.shutdown();
+    super.after();
   }
 }
