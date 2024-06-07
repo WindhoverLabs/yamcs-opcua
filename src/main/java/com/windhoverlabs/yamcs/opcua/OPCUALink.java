@@ -441,6 +441,8 @@ public class OPCUALink extends AbstractLink implements Runnable {
               tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
               cols.add(getPV(p, Instant.now().toEpochMilli(), value));
 
+              log.debug("Pushing {} to stream", p.toString());
+
               columnCount++;
             }
             break;

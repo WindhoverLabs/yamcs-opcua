@@ -92,6 +92,10 @@ public class OPCUALinkTest extends AbstractOPCUAIntegrationTest {
             .get(200, TimeUnit.MILLISECONDS);
     assertNotNull(refParam);
 
+    assertEquals(
+        refParam.getQualifiedName(),
+        "/instruments/tvac/NodeId{ns=2, id=HelloWorld/Dynamic/Boolean}/Variable/Boolean/Value");
+
     OPCUALink l =
         (OPCUALink)
             YamcsServer.getServer().getInstance(yamcsInstance).getLinkManager().getLink("tm_ocpua");
