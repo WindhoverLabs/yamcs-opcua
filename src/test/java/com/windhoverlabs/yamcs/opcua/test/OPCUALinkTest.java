@@ -69,6 +69,7 @@ public class OPCUALinkTest extends AbstractOPCUAIntegrationTest {
       }
     }
   }
+
   //
   //  @Test
   //  public void testMdbParameters() throws InterruptedException, ExecutionException {

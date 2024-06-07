@@ -8,7 +8,7 @@ check-format:
 	mvn com.spotify.fmt:fmt-maven-plugin:check
 
 format:
-	mvn com.coveo:fmt-maven-plugin:format
+	mvn com.spotify.fmt:fmt-maven-plugin:format
 
 generate-coverage-reports: build
 	mvn  org.jacoco:jacoco-maven-plugin:report-aggregate
@@ -16,6 +16,8 @@ generate-coverage-reports: build
 bundle-deps:
 	mvn -DskipTests install dependency:copy-dependencies
 
+test:
+	mvn test -Dorg.slf4j.simpleLogger.defaultLogLevel=off
 
 install-opc-ua-stack:
 	mvn install:install-file \
