@@ -11,6 +11,8 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.yamcs.YConfiguration;
 import org.yamcs.YamcsServer;
 import org.yamcs.client.ClientException;
@@ -36,11 +38,11 @@ import org.yamcs.utils.ValueUtility;
 import org.yamcs.xtce.XtceDb;
 
 /**
- * Simulated YAMCS with a username and password
+ * Simulated YAMCS and OPCUA servers useful for unit/integration testing.
  *
  * @author lgomez
  */
-public abstract class AbstractIntegrationTest {
+public abstract class AbstractOPCUAIntegrationTest {
 
   protected final String yamcsHost = "localhost";
   protected final int yamcsPort = 9190;
@@ -56,16 +58,30 @@ public abstract class AbstractIntegrationTest {
   RefMdbPacketGenerator packetGenerator2; // sends data to tm2_realtime
   static YamcsServer yamcs;
 
+  private static ExampleServer opcuaServer = null;
+
   static {
     // LoggingUtils.enableLogging();
   }
 
-  //  @BeforeAll
+  @BeforeAll
   public static void beforeClass() throws Exception {
+
+    try {
+      try {
+        opcuaServer = ExampleServer.initServer();
+      } catch (Exception e) {
+        // TODO Auto-generated catch block
+        e.printStackTrace();
+      }
+    } catch (Exception e) {
+      // TODO Auto-generated catch block
+      e.printStackTrace();
+    }
     setupYamcs();
   }
 
-  //  @BeforeEach
+  @BeforeEach
   public void before() throws ClientException {
     parameterProvider = ParameterProvider.instance[0];
     assertNotNull(parameterProvider);
@@ -111,6 +127,7 @@ public abstract class AbstractIntegrationTest {
   @AfterAll
   public static void shutDownYamcs() throws Exception {
     YamcsServer.getServer().shutDown();
+    opcuaServer.shutdown();
   }
 
   void generatePkt13AndPps(String utcStart, int numPackets) {

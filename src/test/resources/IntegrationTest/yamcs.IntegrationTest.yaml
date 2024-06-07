@@ -15,20 +15,20 @@ services:
 
 dataLinks:
   - name: tm_realtime
-    class: com.windhoverlabs.yamcs.opcua.test.AbstractIntegrationTest$PacketProvider
+    class: com.windhoverlabs.yamcs.opcua.test.AbstractOPCUAIntegrationTest$PacketProvider
     num: 0
     stream: tm_realtime
   - name: tm2_realtime
-    class: com.windhoverlabs.yamcs.opcua.test.AbstractIntegrationTest$PacketProvider
+    class: com.windhoverlabs.yamcs.opcua.test.AbstractOPCUAIntegrationTest$PacketProvider
     num: 1
     stream: tm2_realtime
             
   - name: pp_realtime
-    class: com.windhoverlabs.yamcs.opcua.test.AbstractIntegrationTest$ParameterProvider
+    class: com.windhoverlabs.yamcs.opcua.test.AbstractOPCUAIntegrationTest$ParameterProvider
     stream: pp_realtime
     num: 0
   - name: tc_realtime
-    class: com.windhoverlabs.yamcs.opcua.test.AbstractIntegrationTest$TcDataLink
+    class: com.windhoverlabs.yamcs.opcua.test.AbstractOPCUAIntegrationTest$TcDataLink
     num: 0
     stream: tc_realtime
  

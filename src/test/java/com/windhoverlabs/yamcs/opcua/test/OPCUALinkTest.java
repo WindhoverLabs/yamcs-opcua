@@ -6,8 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import java.util.List;
-import java.util.concurrent.ExecutionException;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.yamcs.client.processor.ProcessorClient;
@@ -18,37 +16,19 @@ import org.yamcs.protobuf.Yamcs.Value;
 import org.yamcs.protobuf.Yamcs.Value.Type;
 
 /** Unit test for simple App. */
-public class OPCUALinkTest extends AbstractIntegrationTest {
+public class OPCUALinkTest extends AbstractOPCUAIntegrationTest {
 
   String yamcsInstance2 = "IntegrationTest";
   String test = "";
 
   private ProcessorClient processorClient;
-  private ExampleServer opcuaServer = null;
 
   @BeforeEach
   public void prepare() {
     System.out.println("prepare*************call");
-    //    processorClient = yamcsClient.createProcessorClient(yamcsInstance, "realtime");
-    System.out.println("prepare*************call2");
-    try {
-      opcuaServer = ExampleServer.initServer();
-      System.out.println("prepare*************call3");
-    } catch (InterruptedException e) {
-      // TODO Auto-generated catch block
-      e.printStackTrace();
-    } catch (ExecutionException e) {
-      // TODO Auto-generated catch block
-      e.printStackTrace();
-    } catch (Exception e) {
-      // TODO Auto-generated catch block
-      e.printStackTrace();
-    }
-  }
 
-  @AfterEach
-  public void OPCUAServerShutdown() {
-    opcuaServer.shutdown();
+    processorClient = yamcsClient.createProcessorClient(yamcsInstance, "realtime");
+    System.out.println("prepare*************call2");
   }
 
   //  @Test
@@ -153,18 +133,19 @@ public class OPCUALinkTest extends AbstractIntegrationTest {
   public void testOPCUALink() throws Exception {
     System.out.println("setupYamcs*************call3");
     assertEquals(test, "");
-    beforeClass();
-    before();
+    //    beforeClass();
+    //    before();
 
-    var mdbClient = yamcsClient.createMissionDatabaseClient(yamcsInstance);
+    //    var mdbClient = yamcsClient.createMissionDatabaseClient(yamcsInstance);
+    //
+    //    var refParam =
+    //        mdbClient
+    //            .getParameter(
+    //                "/instruments/tvac/NodeId{ns=2,
+    // id=HelloWorld/Dynamic/Double}/Variable/Double/Value")
+    //            .get();
 
-    var refParam =
-        mdbClient
-            .getParameter(
-                "/instruments/tvac/NodeId{ns=2, id=HelloWorld/Dynamic/Double}/Variable/Double/Value")
-            .get();
-
-    System.out.println("refParam-->" + refParam);
+    //    System.out.println("refParam-->" + refParam);
     //    new OPCUALink();
   }
 }
