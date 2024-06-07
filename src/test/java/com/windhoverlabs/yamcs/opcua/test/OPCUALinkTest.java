@@ -31,30 +31,9 @@ public class OPCUALinkTest extends AbstractOPCUAIntegrationTest {
 
   @BeforeEach
   public void prepare() {
-    System.out.println("prepare*************call");
 
     processorClient = yamcsClient.createProcessorClient(yamcsInstance, "realtime");
-    System.out.println("prepare*************call2");
   }
-
-  //  @Test
-  //  @Disabled
-  //  public void testParameterSubscriptionPerformance() throws Exception {
-  //      long t0 = System.currentTimeMillis();
-  //
-  //      SubscribeParametersRequest request = SubscribeParametersRequest.newBuilder()
-  //              .setInstance(yamcsInstance)
-  //              .setProcessor("realtime")
-  //              .addId(NamedObjectId.newBuilder().setName("/REFMDB/SUBSYS1/IntegerPara1_1_7"))
-  //              .addId(NamedObjectId.newBuilder().setName("/REFMDB/SUBSYS1/IntegerPara1_1_6"))
-  //              .build();
-  //      yamcsClient.createParameterSubscription().sendMessage(request);
-  //
-  //      for (int i = 0; i < 1000000; i++) {
-  //          packetGenerator.generate_PKT1_1();
-  //      }
-  //      System.out.println("total time: " + (System.currentTimeMillis() - t0));
-  //  }
 
   private void checkPvals(
       int expectedNumParams, List<ParameterValue> pvals, RefMdbPacketGenerator packetProvider) {
@@ -90,42 +69,6 @@ public class OPCUALinkTest extends AbstractOPCUAIntegrationTest {
       }
     }
   }
-
-  //  @Test
-  //  public void testSimpleTimeSubscription() throws InterruptedException, TimeoutException {
-  //    TimeSubscription subscription = yamcsClient.createTimeSubscription();
-  //    MessageCaptor<Timestamp> captor = MessageCaptor.of(subscription);
-  //
-  //    SubscribeTimeRequest request =
-  //        SubscribeTimeRequest.newBuilder().setInstance(yamcsInstance).build();
-  //    subscription.sendMessage(request);
-  //    captor.expectTimely();
-  //  }
-  //
-  //  @Test
-  //  public void testSimpleSubscription() throws Exception {
-  //    ParameterSubscription subscription = yamcsClient.createParameterSubscription();
-  //    ParameterCaptor captor = ParameterCaptor.of(subscription);
-  //
-  //    SubscribeParametersRequest request =
-  //        SubscribeParametersRequest.newBuilder()
-  //            .setInstance(yamcsInstance)
-  //            .setProcessor("realtime")
-  //            .addId(NamedObjectId.newBuilder().setName("/REFMDB/SUBSYS1/IntegerPara1_1_7"))
-  //            .addId(NamedObjectId.newBuilder().setName("/REFMDB/SUBSYS1/IntegerPara1_1_6"))
-  //            .setSendFromCache(false)
-  //            .build();
-  //    subscription.sendMessage(request);
-  //    subscription.awaitConfirmation();
-  //
-  //    assertTrue(captor.isEmpty());
-  //    packetGenerator.generate_PKT1_1();
-  //
-  //    List<ParameterValue> values = captor.expectTimely();
-  //
-  //    checkPvals(2, values, packetGenerator);
-  //    captor.assertSilence();
-  //  }
   //
   //  @Test
   //  public void testMdbParameters() throws InterruptedException, ExecutionException {
