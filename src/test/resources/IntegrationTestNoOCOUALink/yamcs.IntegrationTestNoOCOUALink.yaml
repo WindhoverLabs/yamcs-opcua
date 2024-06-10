@@ -1,0 +1,113 @@
+services:
+  - class: org.yamcs.archive.XtceTmRecorder
+  - class: org.yamcs.archive.ParameterRecorder
+  - class: org.yamcs.archive.EventRecorder
+  - class: org.yamcs.archive.ReplayServer
+  - class: org.yamcs.archive.CcsdsTmIndex
+  - class: org.yamcs.archive.AlarmRecorder
+  - class: org.yamcs.parameterarchive.ParameterArchive
+  - class: org.yamcs.ProcessorCreatorService
+    args: 
+      name: "realtime"
+      type: "realtime"
+  - class: org.yamcs.archive.CommandHistoryRecorder
+  - class: org.yamcs.timeline.TimelineService
+
+dataLinks:
+  - name: tm_realtime
+    class: com.windhoverlabs.yamcs.opcua.test.AbstractNoOPCUAIntegrationTest$PacketProvider
+    num: 0
+    stream: tm_realtime
+  - name: tm2_realtime
+    class: com.windhoverlabs.yamcs.opcua.test.AbstractNoOPCUAIntegrationTest$PacketProvider
+    num: 1
+    stream: tm2_realtime
+            
+  - name: pp_realtime
+    class: com.windhoverlabs.yamcs.opcua.test.AbstractNoOPCUAIntegrationTest$ParameterProvider
+    stream: pp_realtime
+    num: 0
+  - name: tc_realtime
+    class: com.windhoverlabs.yamcs.opcua.test.AbstractNoOPCUAIntegrationTest$TcDataLink
+    num: 0
+    stream: tc_realtime
+ 
+ 
+  - name: tm_ocpua
+    class: com.windhoverlabs.yamcs.opcua.OPCUALink
+#    # stream: tm_realtime
+    opcua_stream: "opcua_params"
+#    #endpoint_url: "opc.tcp://localhost:4840/"
+    endpoint_url: "opc.tcp://localhost:12686/milo"
+    parameters_namespace: "/instruments/tvac"
+    # packetPreprocessorClassName: org.yamcs.tctm.cfs.CfsPacketPreprocessor
+    # packetPreprocessorArgs:
+    #   checkSequence: false
+    #   byteOrder: LITTLE_ENDIAN
+    #   useLocalGenerationTime: false
+    #   #errorDetection:
+    #   #tcoService:
+    #   timestampFormat: CFE_SB_TIME_32_16_SUBS
+    #   checkSequence: false
+    #   timeEncoding:
+    #     epoch: CUSTOM
+    #     epochUTC: "1970-01-01T00:00:00Z"
+    #     timeIncludesLeapSeconds: true
+
+#  - name: tm_ocpua
+#    class: com.windhoverlabs.yamcs.opcua.OPCUALink
+#    # stream: tm_realtime
+#    opcua_stream: "opcua_params"
+    # packetPreprocessorClassName: org.yamcs.tctm.cfs.CfsPacketPreprocessor
+    # packetPreprocessorArgs:
+    #   checkSequence: false
+    #   byteOrder: LITTLE_ENDIAN
+    #   useLocalGenerationTime: false
+    #   #errorDetection:
+    #   #tcoService:
+    #   timestampFormat: CFE_SB_TIME_32_16_SUBS
+    #   checkSequence: false
+    #   timeEncoding:
+    #     epoch: CUSTOM
+    #     epochUTC: "1970-01-01T00:00:00Z"
+    #     timeIncludesLeapSeconds: true
+
+
+mdb:
+
+  #- type: "sheet"
+    #args: 
+     # file: "mdb/refmdb.xls"
+     # enableAliasReferences: false
+    # Configuration of the active loaders
+    # Valid loaders are: sheet, xtce or fully qualified name of the class
+
+    - type: "sheet"
+      args: 
+       file: "mdb/refmdb.xls"
+       enableAliasReferences: false
+    - type: "xtce"
+      spec: "mdb/cfs-ccsds.xml"
+      subLoaders:
+      - type: "xtce"
+        spec: "mdb/PPD.xml"
+#      - type: "xtce"
+#        spec: "mdb/CPD.xml"
+
+
+streamConfig:
+  tm: 
+   - name: tm_realtime
+     processor: realtime
+   - name: tm2_realtime
+     processor: realtime
+     #rootContainer: /REFMDB/tm2
+   - name: tm_dump
+  cmdHist: ["cmdhist_realtime",  "cmdhist_dump"]
+  event: ["events_realtime", "events_dump"]
+  param: ["sys_param", "pp_realtime", "proc_param"]
+  parameterAlarm: ["alarms_realtime"]
+  eventAlarm: ["event_alarms_realtime"]
+  tc: 
+    - name: "tc_realtime"
+      processor: realtime

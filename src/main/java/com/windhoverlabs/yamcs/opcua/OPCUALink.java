@@ -251,14 +251,9 @@ public class OPCUALink extends AbstractLink implements Runnable {
     opcuaInit();
   }
 
-  private void opcuaInit() throws ConfigurationException {
+  private void opcuaInit() {
     //  	FIXME:Might need to move this function to start(), maybe...
-    try {
-      runOPCUAClient();
-    } catch (Exception e) {
-
-      e.printStackTrace();
-    }
+    runOPCUAClient();
   }
 
   private static Stream getStream(YarchDatabaseInstance ydb, String streamName) {
@@ -887,6 +882,8 @@ public class OPCUALink extends AbstractLink implements Runnable {
     } catch (Exception e) {
       // TODO Auto-generated catch block
       e.printStackTrace();
+      System.out.println("e*************8:" + e);
+      return;
     }
     try {
       connectToOPCUAServer(client, future);

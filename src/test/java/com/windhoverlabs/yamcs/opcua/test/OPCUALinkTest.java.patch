@@ -1,0 +1,62 @@
+diff --git a/src/test/java/com/windhoverlabs/yamcs/opcua/test/OPCUALinkTest.java b/src/test/java/com/windhoverlabs/yamcs/opcua/test/OPCUALinkTest.java
+index e43d415..a64e154 100644
+--- a/src/test/java/com/windhoverlabs/yamcs/opcua/test/OPCUALinkTest.java
++++ b/src/test/java/com/windhoverlabs/yamcs/opcua/test/OPCUALinkTest.java
+@@ -124,4 +124,57 @@ public class OPCUALinkTest extends AbstractOPCUAIntegrationTest {
+     opcuaServer.shutdown();
+     super.after();
+   }
++
++  @Test
++  public void testOPCUALink2() throws Exception {
++
++    super.before();
++    try {
++      try {
++        opcuaServer = ExampleServer.initServer();
++      } catch (Exception e) {
++        // TODO Auto-generated catch block
++        e.printStackTrace();
++      }
++    } catch (Exception e) {
++      // TODO Auto-generated catch block
++      e.printStackTrace();
++    }
++    var mdbClient = yamcsClient.createMissionDatabaseClient(yamcsInstance);
++
++    var refParam =
++        mdbClient
++            .getParameter(
++                "/instruments/tvac/ns=2;s=HelloWorld/Dynamic/Boolean/Variable/Boolean/Value")
++            .get(200, TimeUnit.MILLISECONDS);
++    assertNotNull(refParam);
++
++    assertEquals(
++        refParam.getQualifiedName(),
++        "/instruments/tvac/ns=2;s=HelloWorld/Dynamic/Boolean/Variable/Boolean/Value");
++
++    OPCUALink l =
++        (OPCUALink)
++            YamcsServer.getServer().getInstance(yamcsInstance).getLinkManager().getLink("tm_ocpua");
++
++    assertEquals(l.getLinkStatus(), Status.OK);
++
++    assertEquals(l.connectionStatus(), Status.OK);
++
++    LinkAction action = l.getAction("query_all");
++
++    assertNotNull(action);
++
++    action.execute(l, new JsonObject());
++
++    Thread.sleep(2000);
++
++    l.resetCounters();
++    l.doDisable();
++    assertEquals(l.connectionStatus(), Status.DISABLED);
++    assertEquals("DISABLED", l.getDetailedStatus());
++
++    opcuaServer.shutdown();
++    super.after();
++  }
+ }

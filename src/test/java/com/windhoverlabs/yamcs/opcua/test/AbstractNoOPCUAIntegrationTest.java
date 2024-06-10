@@ -38,11 +38,11 @@ import org.yamcs.xtce.XtceDb;
  *
  * @author lgomez
  */
-public abstract class AbstractOPCUAIntegrationTest {
+public abstract class AbstractNoOPCUAIntegrationTest {
 
   protected final String yamcsHost = "localhost";
   protected final int yamcsPort = 9190;
-  protected final String yamcsInstance = "IntegrationTest";
+  protected final String yamcsInstance = "IntegrationTestNoOCOUALink";
 
   ParameterProvider parameterProvider;
   MyConnectionListener connectionListener;
@@ -91,10 +91,11 @@ public abstract class AbstractOPCUAIntegrationTest {
   }
 
   protected void setupYamcs() throws Exception {
-    Path dataDir = Path.of(System.getProperty("java.io.tmpdir"), "yamcs-IntegrationTest-data");
+    Path dataDir =
+        Path.of(System.getProperty("java.io.tmpdir"), "yamcs-IntegrationTestNoOCOUALink-data");
     FileUtils.deleteRecursivelyIfExists(dataDir);
 
-    YConfiguration.setupTest("IntegrationTest");
+    YConfiguration.setupTest("IntegrationTestNoOCOUALink");
 
     yamcs = YamcsServer.getServer();
     yamcs.prepareStart();
@@ -330,7 +331,7 @@ public abstract class AbstractOPCUAIntegrationTest {
       pv5.setRawUnsignedInteger(1);
 
       ppListener.updateParameters(
-          generationTime, "IntegrationTest", seqNum, Arrays.asList(pv1, pv2, pv5));
+          generationTime, "IntegrationTestNoOCOUALink", seqNum, Arrays.asList(pv1, pv2, pv5));
 
       // this one should be combined with the two above in the archive as they have the same
       // generation time,
@@ -342,7 +343,8 @@ public abstract class AbstractOPCUAIntegrationTest {
               .setGenerationTime(TimeEncoding.toProtobufTimestamp(generationTime))
               .setEngValue(ValueUtility.getDoubleGbpValue(x))
               .build();
-      ppListener.updateParams(generationTime, "IntegrationTest", seqNum, Arrays.asList(pv3));
+      ppListener.updateParams(
+          generationTime, "IntegrationTestNoOCOUALink", seqNum, Arrays.asList(pv3));
 
       // mixup some ParameterValue with Protobuf ParameterValue to test compatibility with old yamcs
       org.yamcs.protobuf.Pvalue.ParameterValue pv4 =
