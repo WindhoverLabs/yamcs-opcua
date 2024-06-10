@@ -2,6 +2,7 @@ package com.windhoverlabs.yamcs.opcua.test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -20,7 +21,7 @@ import org.yamcs.protobuf.Yamcs.Value.Type;
 
 /** Unit test for simple App. */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-public class NoOPCUALinkTest extends AbstractNoOPCUAIntegrationTest {
+public class InvalidConfigOPCUALinkTest extends AbstractInvalidConfigOPCUAIntegrationTest {
 
   private ProcessorClient processorClient;
 
@@ -69,7 +70,12 @@ public class NoOPCUALinkTest extends AbstractNoOPCUAIntegrationTest {
   @Test
   @Order(1)
   public void testOPCUALink() throws Exception {
-    super.before();
-    super.after();
+    //    super.before();
+    com.google.common.util.concurrent.UncheckedExecutionException exception =
+        assertThrows(
+            com.google.common.util.concurrent.UncheckedExecutionException.class,
+            () -> super.before());
+
+    //    assertEquals("Missing required argument endpoint_url", exception.getMessage());
   }
 }
