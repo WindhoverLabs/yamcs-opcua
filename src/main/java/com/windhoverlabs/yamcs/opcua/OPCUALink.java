@@ -741,59 +741,12 @@ public class OPCUALink extends AbstractLink implements Runnable {
                   new NodeIDAttrPair(
                       rd.getNodeId().toNodeId(client.getNamespaceTable()).get(), attr),
                   (VariableParam) p);
-
-              TupleDefinition tdef = gftdef.copy();
-              List<Object> cols = new ArrayList<>(4 + 1);
-              long gentime = timeService.getMissionTime();
-              cols.add(gentime);
-              cols.add(parametersNamespace);
-              cols.add(0);
-              cols.add(gentime);
-
-              //            tdef.addColumn(
-              //                nodeIDToParamsMap.get(items.get(i).getNodeId()).getQualifiedName(),
-              //                DataType.PARAMETER_VALUE);
-              //
-              //            cols.add(
-              //                getPV(
-              //                    nodeIDToParamsMap.get(items.get(i).getNodeId()),
-              //                    Instant.now().toEpochMilli(),
-              //                    values.get(i).getValue().toString()));
-
-              //              tdef.addColumn(
-              //                  nodeIDToParamsMap
-              //
-              // .get(rd.getNodeId().toNodeId(client.getNamespaceTable()).get())
-              //                      .getQualifiedName(),
-              //                  DataType.PARAMETER_VALUE);
-              //
-              //              cols.add(
-              //                  getPV(
-              //                      nodeIDToParamsMap.get(
-              //
-              // rd.getNodeId().toNodeId(client.getNamespaceTable()).get()),
-              //                      Instant.now().toEpochMilli(),
-              //                      "PlaceHolder"));
-              //
-              //              Tuple t = new Tuple(tdef, cols);
-              //
-              //              log.info(
-              //                  "Data({}) chnage triggered for {} and pushing placeholder PV",
-              //                  "PlaceHolder",
-              //                  nodeIDToParamsMap
-              //
-              // .get(rd.getNodeId().toNodeId(client.getNamespaceTable()).get())
-              //                      .getQualifiedName());
-              //
-              //              opcuaStream.emitTuple(t);
             }
           }
         }
 
         log.debug(
             "{} Node={}, Desc={}, Value={}", indent, rd.getBrowseName().getName(), desc, value);
-        {
-        }
 
         // recursively browse to children
         rd.getNodeId()

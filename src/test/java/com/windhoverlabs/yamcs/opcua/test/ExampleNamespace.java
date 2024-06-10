@@ -989,11 +989,11 @@ public class ExampleNamespace extends ManagedNamespaceWithLifecycle {
 
     UaVariableNode customUnionTypeVariable =
         UaVariableNode.builder(getNodeContext())
-            .setNodeId(newNodeId("HelloWorld/CustomUnionTypeVariable"))
+            .setNodeId(newNodeId("HelloWorld/CustomUnionTypeVaria/ble"))
             .setAccessLevel(AccessLevel.READ_WRITE)
             .setUserAccessLevel(AccessLevel.READ_WRITE)
-            .setBrowseName(newQualifiedName("CustomUnionTypeVariable"))
-            .setDisplayName(LocalizedText.english("CustomUnionTypeVariable"))
+            .setBrowseName(newQualifiedName("CustomUnionTypeVaria/ble"))
+            .setDisplayName(LocalizedText.english("CustomUnionTypeVaria/ble"))
             .setDataType(dataTypeId)
             .setTypeDefinition(Identifiers.BaseDataVariableType)
             .build();
