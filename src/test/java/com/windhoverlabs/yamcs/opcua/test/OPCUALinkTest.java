@@ -114,7 +114,8 @@ public class OPCUALinkTest extends AbstractOPCUAIntegrationTest {
 
     action.execute(l, new JsonObject());
 
-    Thread.sleep(2000);
+    /** FIXME:Don't really like making timing assumptions when it comes to futures.. */
+    Thread.sleep(5000);
 
     l.resetCounters();
     l.doDisable();
