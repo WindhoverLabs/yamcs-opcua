@@ -832,22 +832,14 @@ public class OPCUALink extends AbstractLink implements Runnable {
     client = null;
     try {
       client = createClient();
+      connectToOPCUAServer(client, future);
+      opcuaSubscription = ManagedSubscription.create(client, 1);
     } catch (Exception e) {
       // TODO Auto-generated catch block
       e.printStackTrace();
-      System.out.println("e*************8:" + e);
       return;
     }
     try {
-      connectToOPCUAServer(client, future);
-
-      try {
-        opcuaSubscription = ManagedSubscription.create(client, 1);
-      } catch (UaException e) {
-        // TODO Auto-generated catch block
-        e.printStackTrace();
-      }
-
       opcuaSubscription.addDataChangeListener(
           (items, values) -> {
             for (int i = 0; i < items.size(); i++) {
