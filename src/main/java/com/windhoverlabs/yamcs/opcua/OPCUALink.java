@@ -47,6 +47,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -56,15 +57,18 @@ import java.util.function.Supplier;
 import java.util.logging.Logger;
 import org.eclipse.milo.opcua.sdk.client.OpcUaClient;
 import org.eclipse.milo.opcua.sdk.client.api.config.OpcUaClientConfig;
+import org.eclipse.milo.opcua.sdk.client.api.identity.AnonymousProvider;
 import org.eclipse.milo.opcua.sdk.client.nodes.UaNode;
 import org.eclipse.milo.opcua.sdk.client.subscriptions.ManagedDataItem;
 import org.eclipse.milo.opcua.sdk.client.subscriptions.ManagedSubscription;
 import org.eclipse.milo.opcua.stack.client.DiscoveryClient;
+import org.eclipse.milo.opcua.stack.client.security.DefaultClientCertificateValidator;
 import org.eclipse.milo.opcua.stack.core.AttributeId;
 import org.eclipse.milo.opcua.stack.core.Identifiers;
 import org.eclipse.milo.opcua.stack.core.UaException;
 import org.eclipse.milo.opcua.stack.core.security.DefaultTrustListManager;
 import org.eclipse.milo.opcua.stack.core.types.builtin.DataValue;
+import org.eclipse.milo.opcua.stack.core.types.builtin.LocalizedText;
 import org.eclipse.milo.opcua.stack.core.types.builtin.NodeId;
 import org.eclipse.milo.opcua.stack.core.types.builtin.Variant;
 import org.eclipse.milo.opcua.stack.core.types.enumerated.BrowseDirection;
@@ -647,15 +651,58 @@ public class OPCUALink extends AbstractLink implements Runnable {
     LoggerFactory.getLogger(getClass()).info("security dir: {}", securityTempDir.toAbsolutePath());
     LoggerFactory.getLogger(getClass()).info("security pki dir: {}", pkiDir.getAbsolutePath());
 
+    System.out.println("pkiDir.getAbsolutePath():" + pkiDir.getAbsolutePath());
     trustListManager = new DefaultTrustListManager(pkiDir);
 
     //    FIXME:Make url configurable
     //    endpointURL = "opc.tcp://localhost:4840/";
-    List<EndpointDescription> endpoint = DiscoveryClient.getEndpoints(endpointURL).get();
+    //    TODO:Make discovery URL configurable
+    List<EndpointDescription> endpoint =
+        DiscoveryClient.getEndpoints("opc.tcp://pop-os:12686/milo/discovery").get();
 
     OpcUaClientConfig builder = OpcUaClientConfig.builder().setEndpoint(endpoint.get(0)).build();
 
-    return OpcUaClient.create(builder);
+    KeyStoreLoader loader = new KeyStoreLoader().load(securityTempDir);
+
+    trustListManager = new DefaultTrustListManager(pkiDir);
+
+    DefaultClientCertificateValidator certificateValidator =
+        new DefaultClientCertificateValidator(trustListManager);
+
+    //    for(var e: endpoint)
+    //    {
+    //        System.out.println("endpoint:" + e);
+    //        System.out.println("************************************");
+    //    }
+
+    //    endpointURL
+    //    "opc.tcp://139.169.156.29:5011/lcoFwxServer"
+    return OpcUaClient.create(
+        endpointURL,
+        endpoints -> {
+          //        	System.out.println("endpoints-------->" + endpoints);
+
+          //            return endpoints.stream()
+          //                .filter(
+          //                    e ->
+          // SecurityPolicy.Basic256Sha256.getUri().equals(e.getSecurityPolicyUri()))
+          //                .findFirst();
+
+          return Optional.of(endpoints.get(0));
+        },
+        configBuilder ->
+            configBuilder
+                .setApplicationName(LocalizedText.english("eclipse milo opc-ua client"))
+                .setApplicationUri("urn:eclipse:milo:examples:client")
+                .setKeyPair(loader.getClientKeyPair())
+                .setCertificate(loader.getClientCertificate())
+                .setCertificateChain(loader.getClientCertificateChain())
+                .setCertificateValidator(certificateValidator)
+                .setIdentityProvider(new AnonymousProvider())
+                .setRequestTimeout(uint(5000))
+                .build());
+
+    // return OpcUaClient.create(builder);
   }
 
   private void browseNode(String indent, OpcUaClient client, NodeId browseRoot) {
