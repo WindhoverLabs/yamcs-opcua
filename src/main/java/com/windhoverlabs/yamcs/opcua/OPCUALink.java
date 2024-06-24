@@ -39,9 +39,12 @@ import static org.yamcs.xtce.NameDescription.qualifiedName;
 
 import com.google.gson.JsonObject;
 import java.io.File;
+import java.io.FileInputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -62,6 +65,7 @@ import org.eclipse.milo.opcua.sdk.client.nodes.UaNode;
 import org.eclipse.milo.opcua.sdk.client.subscriptions.ManagedDataItem;
 import org.eclipse.milo.opcua.sdk.client.subscriptions.ManagedSubscription;
 import org.eclipse.milo.opcua.stack.client.DiscoveryClient;
+import org.eclipse.milo.opcua.stack.client.security.ClientCertificateValidator.InsecureValidator;
 import org.eclipse.milo.opcua.stack.client.security.DefaultClientCertificateValidator;
 import org.eclipse.milo.opcua.stack.core.AttributeId;
 import org.eclipse.milo.opcua.stack.core.Identifiers;
@@ -665,15 +669,19 @@ public class OPCUALink extends AbstractLink implements Runnable {
     KeyStoreLoader loader = new KeyStoreLoader().load(securityTempDir);
 
     trustListManager = new DefaultTrustListManager(pkiDir);
+        
+//    CertificateFactory fact = CertificateFactory.getInstance("X.509");
+//    FileInputStream is = new FileInputStream ("");
+//    X509Certificate cer = (X509Certificate) fact.generateCertificate(is);
+//    
+//    trustListManager.addTrustedCertificate(cer);
 
     DefaultClientCertificateValidator certificateValidator =
         new DefaultClientCertificateValidator(trustListManager);
+    
+//    InsecureValidator certificateValidator =
+//            new InsecureValidator();
 
-    //    for(var e: endpoint)
-    //    {
-    //        System.out.println("endpoint:" + e);
-    //        System.out.println("************************************");
-    //    }
 
     //    endpointURL
     //    "opc.tcp://139.169.156.29:5011/lcoFwxServer"
