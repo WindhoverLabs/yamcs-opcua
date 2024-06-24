@@ -57,8 +57,7 @@ class KeyStoreLoader {
       SelfSignedCertificateBuilder builder =
           new SelfSignedCertificateBuilder(keyPair)
               .setCommonName("Eclipse Milo Example Client")
-              //              .setOrganization("digitalpetri")
-              .setOrganization("NASA")
+              .setOrganization("digitalpetri")
               .setOrganizationalUnit("dev")
               .setLocalityName("Folsom")
               .setStateName("CA")
