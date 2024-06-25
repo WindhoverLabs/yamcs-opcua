@@ -38,6 +38,8 @@ import static org.eclipse.milo.opcua.stack.core.util.ConversionUtil.toList;
 import static org.yamcs.xtce.NameDescription.qualifiedName;
 
 import com.google.gson.JsonObject;
+
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.nio.file.Files;
@@ -59,13 +61,10 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.logging.Logger;
 import org.eclipse.milo.opcua.sdk.client.OpcUaClient;
-import org.eclipse.milo.opcua.sdk.client.api.config.OpcUaClientConfig;
 import org.eclipse.milo.opcua.sdk.client.api.identity.AnonymousProvider;
 import org.eclipse.milo.opcua.sdk.client.nodes.UaNode;
 import org.eclipse.milo.opcua.sdk.client.subscriptions.ManagedDataItem;
 import org.eclipse.milo.opcua.sdk.client.subscriptions.ManagedSubscription;
-import org.eclipse.milo.opcua.stack.client.DiscoveryClient;
-import org.eclipse.milo.opcua.stack.client.security.ClientCertificateValidator.InsecureValidator;
 import org.eclipse.milo.opcua.stack.client.security.DefaultClientCertificateValidator;
 import org.eclipse.milo.opcua.stack.core.AttributeId;
 import org.eclipse.milo.opcua.stack.core.Identifiers;
@@ -80,7 +79,6 @@ import org.eclipse.milo.opcua.stack.core.types.enumerated.BrowseResultMask;
 import org.eclipse.milo.opcua.stack.core.types.enumerated.NodeClass;
 import org.eclipse.milo.opcua.stack.core.types.structured.BrowseDescription;
 import org.eclipse.milo.opcua.stack.core.types.structured.BrowseResult;
-import org.eclipse.milo.opcua.stack.core.types.structured.EndpointDescription;
 import org.eclipse.milo.opcua.stack.core.types.structured.ReferenceDescription;
 import org.slf4j.LoggerFactory;
 import org.yamcs.ConfigurationException;
@@ -661,27 +659,31 @@ public class OPCUALink extends AbstractLink implements Runnable {
     //    FIXME:Make url configurable
     //    endpointURL = "opc.tcp://localhost:4840/";
     //    TODO:Make discovery URL configurable
-    List<EndpointDescription> endpoint =
-        DiscoveryClient.getEndpoints("opc.tcp://pop-os:12686/milo/discovery").get();
-
-    OpcUaClientConfig builder = OpcUaClientConfig.builder().setEndpoint(endpoint.get(0)).build();
+    //    List<EndpointDescription> endpoint =
+    //        DiscoveryClient.getEndpoints("opc.tcp://pop-os:12686/milo/discovery").get();
+    //
+    //    OpcUaClientConfig builder =
+    // OpcUaClientConfig.builder().setEndpoint(endpoint.get(0)).build();
 
     KeyStoreLoader loader = new KeyStoreLoader().load(securityTempDir);
 
-    trustListManager = new DefaultTrustListManager(pkiDir);
-        
-//    CertificateFactory fact = CertificateFactory.getInstance("X.509");
-//    FileInputStream is = new FileInputStream ("");
-//    X509Certificate cer = (X509Certificate) fact.generateCertificate(is);
-//    
-//    trustListManager.addTrustedCertificate(cer);
+    //    trustListManager = new DefaultTrustListManager(pkiDir);
+    //
+    //    CertificateFactory fact = CertificateFactory.getInstance("X.509");
+    //    FileInputStream is = new FileInputStream
+    // (Paths.get("/tmp/server/security/pki/trusted/certs/",
+    // "e306b0c7d654abbc76aed8a0fde1cb3d68d76dcf [C%3DUS].der").toAbsolutePath().toString());
+    //    X509Certificate cer = (X509Certificate) fact.generateCertificate(is);
+    ////
+    //
+    //    System.out.println("cer:*************88" + cer);
+    //    trustListManager.addTrustedCertificate(cer);
 
     DefaultClientCertificateValidator certificateValidator =
         new DefaultClientCertificateValidator(trustListManager);
-    
-//    InsecureValidator certificateValidator =
-//            new InsecureValidator();
 
+    //    InsecureValidator certificateValidator =
+    //            new InsecureValidator();
 
     //    endpointURL
     //    "opc.tcp://139.169.156.29:5011/lcoFwxServer"
@@ -887,6 +889,23 @@ public class OPCUALink extends AbstractLink implements Runnable {
     client = null;
     try {
       client = createClient();
+
+//      client
+//          .getConfig()
+//          .getCertificate()
+//          .ifPresent(certificate -> {trustListManager.addTrustedCertificate(certificate);
+//        	  System.out.println("certificate-->" + certificate);});
+      
+      System.out.println( client.getConfig().getEndpoint().getServerCertificate());
+      
+          CertificateFactory fact = CertificateFactory.getInstance("X.509");
+          FileInputStream is = new FileInputStream
+       (Paths.get("/tmp/server/security/pki/trusted/certs/",
+       "8a567029811d650719caedd604ee3cd5d30a1a96 [C%3DUS].der").toAbsolutePath().toString());
+          X509Certificate cer = (X509Certificate) fact.generateCertificate(new ByteArrayInputStream(client.getConfig().getEndpoint().getServerCertificate().bytes()));
+            trustListManager.addTrustedCertificate(cer);
+            System.out.println("cer-->" + cer);
+//      certificate -> trustListManager.addTrustedCertificate(certificate);
       connectToOPCUAServer(client, future);
       opcuaSubscription = ManagedSubscription.create(client, 1);
     } catch (Exception e) {
