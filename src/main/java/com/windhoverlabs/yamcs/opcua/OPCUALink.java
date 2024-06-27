@@ -38,21 +38,15 @@ import static org.eclipse.milo.opcua.stack.core.util.ConversionUtil.toList;
 import static org.yamcs.xtce.NameDescription.qualifiedName;
 
 import com.google.gson.JsonObject;
-
-import java.io.ByteArrayInputStream;
 import java.io.File;
-import java.io.FileInputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.security.cert.CertificateFactory;
-import java.security.cert.X509Certificate;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -61,17 +55,16 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.logging.Logger;
 import org.eclipse.milo.opcua.sdk.client.OpcUaClient;
-import org.eclipse.milo.opcua.sdk.client.api.identity.AnonymousProvider;
+import org.eclipse.milo.opcua.sdk.client.api.config.OpcUaClientConfig;
 import org.eclipse.milo.opcua.sdk.client.nodes.UaNode;
 import org.eclipse.milo.opcua.sdk.client.subscriptions.ManagedDataItem;
 import org.eclipse.milo.opcua.sdk.client.subscriptions.ManagedSubscription;
-import org.eclipse.milo.opcua.stack.client.security.DefaultClientCertificateValidator;
+import org.eclipse.milo.opcua.stack.client.DiscoveryClient;
 import org.eclipse.milo.opcua.stack.core.AttributeId;
 import org.eclipse.milo.opcua.stack.core.Identifiers;
 import org.eclipse.milo.opcua.stack.core.UaException;
 import org.eclipse.milo.opcua.stack.core.security.DefaultTrustListManager;
 import org.eclipse.milo.opcua.stack.core.types.builtin.DataValue;
-import org.eclipse.milo.opcua.stack.core.types.builtin.LocalizedText;
 import org.eclipse.milo.opcua.stack.core.types.builtin.NodeId;
 import org.eclipse.milo.opcua.stack.core.types.builtin.Variant;
 import org.eclipse.milo.opcua.stack.core.types.enumerated.BrowseDirection;
@@ -79,6 +72,7 @@ import org.eclipse.milo.opcua.stack.core.types.enumerated.BrowseResultMask;
 import org.eclipse.milo.opcua.stack.core.types.enumerated.NodeClass;
 import org.eclipse.milo.opcua.stack.core.types.structured.BrowseDescription;
 import org.eclipse.milo.opcua.stack.core.types.structured.BrowseResult;
+import org.eclipse.milo.opcua.stack.core.types.structured.EndpointDescription;
 import org.eclipse.milo.opcua.stack.core.types.structured.ReferenceDescription;
 import org.slf4j.LoggerFactory;
 import org.yamcs.ConfigurationException;
@@ -659,63 +653,70 @@ public class OPCUALink extends AbstractLink implements Runnable {
     //    FIXME:Make url configurable
     //    endpointURL = "opc.tcp://localhost:4840/";
     //    TODO:Make discovery URL configurable
-    //    List<EndpointDescription> endpoint =
-    //        DiscoveryClient.getEndpoints("opc.tcp://pop-os:12686/milo/discovery").get();
-    //
-    //    OpcUaClientConfig builder =
-    // OpcUaClientConfig.builder().setEndpoint(endpoint.get(0)).build();
+    List<EndpointDescription> endpoints =
+        DiscoveryClient.getEndpoints("opc.tcp://pop-os:12686/milo/discovery").get();
 
-    KeyStoreLoader loader = new KeyStoreLoader().load(securityTempDir);
+    //    FIXME:At the moment, we do not support certificates...
+    EndpointDescription selectedEndpoint = null;
+    for (var endpoint : endpoints) {
+      switch (endpoint.getSecurityMode()) {
+        case Invalid:
+          //			FIXME:Add log message
+          break;
+        case None:
+          //			FIXME:Add log message
+          selectedEndpoint = endpoint;
+          break;
+          //			FIXME:Add log message
+        case Sign:
+          break;
+        case SignAndEncrypt:
+          //			FIXME:Add log message
+          break;
+        default:
+          break;
+      }
 
-    //    trustListManager = new DefaultTrustListManager(pkiDir);
-    //
+      if (selectedEndpoint != null) {
+        break;
+      }
+    }
+
     //    CertificateFactory fact = CertificateFactory.getInstance("X.509");
-    //    FileInputStream is = new FileInputStream
-    // (Paths.get("/tmp/server/security/pki/trusted/certs/",
-    // "e306b0c7d654abbc76aed8a0fde1cb3d68d76dcf [C%3DUS].der").toAbsolutePath().toString());
-    //    X509Certificate cer = (X509Certificate) fact.generateCertificate(is);
-    ////
+    //    X509Certificate cer =
+    //        (X509Certificate)
+    //            fact.generateCertificate(
+    //                new ByteArrayInputStream(endpoints.get(2).getServerCertificate().bytes()));
+    //    KeyStoreLoader loader = new KeyStoreLoader().loadFromCert(securityTempDir, cer);
     //
-    //    System.out.println("cer:*************88" + cer);
-    //    trustListManager.addTrustedCertificate(cer);
+    //    trustListManager.addTrustedCertificate(loader.getClientCertificate());
 
-    DefaultClientCertificateValidator certificateValidator =
-        new DefaultClientCertificateValidator(trustListManager);
+    if (selectedEndpoint == null) {
+      throw new Exception("No viable endpoint found from list:" + endpoints);
+    }
 
-    //    InsecureValidator certificateValidator =
-    //            new InsecureValidator();
+    OpcUaClientConfig builder = OpcUaClientConfig.builder().setEndpoint(selectedEndpoint).build();
 
-    //    endpointURL
-    //    "opc.tcp://139.169.156.29:5011/lcoFwxServer"
-    return OpcUaClient.create(
-        endpointURL,
-        endpoints -> {
-          //        	System.out.println("endpoints-------->" + endpoints);
-
-          //            return endpoints.stream()
-          //                .filter(
-          //                    e ->
-          // SecurityPolicy.Basic256Sha256.getUri().equals(e.getSecurityPolicyUri()))
-          //                .findFirst();
-
-          return Optional.of(endpoints.get(0));
-        },
-        configBuilder ->
-            configBuilder
-                .setApplicationName(LocalizedText.english("eclipse milo opc-ua client"))
-                .setApplicationUri("urn:eclipse:milo:examples:client")
-                .setKeyPair(loader.getClientKeyPair())
-                .setCertificate(loader.getClientCertificate())
-                .setCertificateChain(loader.getClientCertificateChain())
-                .setCertificateValidator(certificateValidator)
-                .setIdentityProvider(new AnonymousProvider())
-                .setRequestTimeout(uint(5000))
-                .build());
-
-    // return OpcUaClient.create(builder);
+    return OpcUaClient.create(builder);
   }
 
-  private void browseNode(String indent, OpcUaClient client, NodeId browseRoot) {
+  private void browseNodes() {
+    // ObjectNode
+    // List<? extends UaNode> nodes = client
+    //     .getAddressSpace().browseNodes(browseRoot,
+    // BrowseOptions.builder().setNodeClassMask(uint(NodeClass.Object.getValue())).build());
+    //     System.out.println("Regular nodes-->" + nodes);
+
+    //     for (UaNode node : nodes) {
+    //       // logger.info("{} Node={}", indent, node.getBrowseName().getName());
+    //       System.out.println("NODE:" + node.getNodeId());
+
+    //       // recursively browse to children
+    //       // browseNode(indent + "  ", client, node.getNodeId());
+    //   }
+  }
+
+  private void browseNodeWithReferences(String indent, OpcUaClient client, NodeId browseRoot) {
     BrowseDescription browse =
         new BrowseDescription(
             browseRoot,
@@ -726,14 +727,26 @@ public class OPCUALink extends AbstractLink implements Runnable {
             uint(BrowseResultMask.All.getValue()));
 
     try {
+
+      System.out.println("browseNode1");
       BrowseResult browseResult = client.browse(browse).get();
 
       List<ReferenceDescription> references = toList(browseResult.getReferences());
+
+      System.out.println("browseNode2:" + references);
+
+      if (references.isEmpty()) {
+        System.out.println("Empty list, return:" + references);
+        System.out.println("node with empty list:" + browseRoot.getType());
+
+        return;
+      }
 
       for (ReferenceDescription rd : references) {
         Object desc = null;
         Object value = null;
         try {
+
           UaNode node =
               client
                   .getAddressSpace()
@@ -742,6 +755,8 @@ public class OPCUALink extends AbstractLink implements Runnable {
           desc = attr.getValue().getValue();
 
           attr = node.readAttribute(AttributeId.Value);
+
+          System.out.println("browseNode3");
 
           value = attr.getValue();
 
@@ -757,6 +772,8 @@ public class OPCUALink extends AbstractLink implements Runnable {
               "{} ignored since it contains a {} character",
               rd.getBrowseName().getName(),
               Character.toString(NameDescription.PATH_SEPARATOR));
+
+          System.out.println("IGNORING:" + rd.getBrowseName().getName());
         } else {
 
           //        FIXME:Remember to re-use these params (Do NOT create new objects when pushing
@@ -781,6 +798,7 @@ public class OPCUALink extends AbstractLink implements Runnable {
                                 .toNodeId(client.getNamespaceTable())
                                 .get()
                                 .toParseableString()
+                                .replace(";", "-")
                             + NameDescription.PATH_SEPARATOR
                             + rd.getNodeClass()
                             + NameDescription.PATH_SEPARATOR
@@ -805,13 +823,22 @@ public class OPCUALink extends AbstractLink implements Runnable {
         log.debug(
             "{} Node={}, Desc={}, Value={}", indent, rd.getBrowseName().getName(), desc, value);
 
+        if (rd.getIsForward()) {}
+
         // recursively browse to children
         rd.getNodeId()
             .toNodeId(client.getNamespaceTable())
-            .ifPresent(nodeId -> browseNode(indent + "  ", client, nodeId));
+            .ifPresent(nodeId -> browseNodeWithReferences(indent + "  ", client, nodeId));
       }
-    } catch (InterruptedException | ExecutionException e) {
-      log.error("Browsing nodeId={} failed: {}", browseRoot, e.getMessage(), e);
+
+      System.out.println("browseRoot:" + browseRoot.toParseableString());
+
+    } catch (InterruptedException e1) {
+      // TODO Auto-generated catch block
+      e1.printStackTrace();
+    } catch (ExecutionException e1) {
+      // TODO Auto-generated catch block
+      e1.printStackTrace();
     }
   }
 
@@ -871,10 +898,12 @@ public class OPCUALink extends AbstractLink implements Runnable {
   public void connectToOPCUAServer(OpcUaClient client, CompletableFuture<OpcUaClient> future)
       throws Exception {
     // synchronous connect
+    System.out.println("Connecting...");
     client.connect().get();
 
     // start browsing at root folder
-    browseNode("", client, Identifiers.RootFolder);
+    System.out.println("Browsing node...");
+    browseNodeWithReferences("", client, Identifiers.RootFolder);
 
     future.complete(client);
   }
@@ -890,22 +919,6 @@ public class OPCUALink extends AbstractLink implements Runnable {
     try {
       client = createClient();
 
-//      client
-//          .getConfig()
-//          .getCertificate()
-//          .ifPresent(certificate -> {trustListManager.addTrustedCertificate(certificate);
-//        	  System.out.println("certificate-->" + certificate);});
-      
-      System.out.println( client.getConfig().getEndpoint().getServerCertificate());
-      
-          CertificateFactory fact = CertificateFactory.getInstance("X.509");
-          FileInputStream is = new FileInputStream
-       (Paths.get("/tmp/server/security/pki/trusted/certs/",
-       "8a567029811d650719caedd604ee3cd5d30a1a96 [C%3DUS].der").toAbsolutePath().toString());
-          X509Certificate cer = (X509Certificate) fact.generateCertificate(new ByteArrayInputStream(client.getConfig().getEndpoint().getServerCertificate().bytes()));
-            trustListManager.addTrustedCertificate(cer);
-            System.out.println("cer-->" + cer);
-//      certificate -> trustListManager.addTrustedCertificate(certificate);
       connectToOPCUAServer(client, future);
       opcuaSubscription = ManagedSubscription.create(client, 1);
     } catch (Exception e) {
