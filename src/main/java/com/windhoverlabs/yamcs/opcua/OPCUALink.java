@@ -34,6 +34,7 @@
 package com.windhoverlabs.yamcs.opcua;
 
 import static org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.uint;
+import static org.eclipse.milo.opcua.stack.core.util.ConversionUtil.l;
 import static org.eclipse.milo.opcua.stack.core.util.ConversionUtil.toList;
 import static org.yamcs.xtce.NameDescription.qualifiedName;
 
@@ -67,15 +68,22 @@ import org.eclipse.milo.opcua.stack.core.UaException;
 import org.eclipse.milo.opcua.stack.core.security.DefaultTrustListManager;
 import org.eclipse.milo.opcua.stack.core.types.builtin.DataValue;
 import org.eclipse.milo.opcua.stack.core.types.builtin.NodeId;
+import org.eclipse.milo.opcua.stack.core.types.builtin.QualifiedName;
+import org.eclipse.milo.opcua.stack.core.types.builtin.StatusCode;
 import org.eclipse.milo.opcua.stack.core.types.builtin.Variant;
 import org.eclipse.milo.opcua.stack.core.types.enumerated.BrowseDirection;
 import org.eclipse.milo.opcua.stack.core.types.enumerated.BrowseResultMask;
 import org.eclipse.milo.opcua.stack.core.types.enumerated.IdType;
 import org.eclipse.milo.opcua.stack.core.types.enumerated.NodeClass;
 import org.eclipse.milo.opcua.stack.core.types.structured.BrowseDescription;
+import org.eclipse.milo.opcua.stack.core.types.structured.BrowsePath;
+import org.eclipse.milo.opcua.stack.core.types.structured.BrowsePathResult;
 import org.eclipse.milo.opcua.stack.core.types.structured.BrowseResult;
 import org.eclipse.milo.opcua.stack.core.types.structured.EndpointDescription;
 import org.eclipse.milo.opcua.stack.core.types.structured.ReferenceDescription;
+import org.eclipse.milo.opcua.stack.core.types.structured.RelativePath;
+import org.eclipse.milo.opcua.stack.core.types.structured.RelativePathElement;
+import org.eclipse.milo.opcua.stack.core.types.structured.TranslateBrowsePathsToNodeIdsResponse;
 import org.slf4j.LoggerFactory;
 import org.yamcs.ConfigurationException;
 import org.yamcs.Spec;
@@ -759,6 +767,8 @@ public class OPCUALink extends AbstractLink implements Runnable {
       System.out.println("browseNode2:" + references);
 
       if (references.isEmpty()) {
+
+        //    	  browseRoot.findMemberNodeId()
         System.out.println("Empty list, return:" + references);
         System.out.println("node with empty list:" + browseRoot.getType());
 
@@ -865,6 +875,93 @@ public class OPCUALink extends AbstractLink implements Runnable {
     }
   }
 
+  private void browsePath(String indent, OpcUaClient client, NodeId browseRoot) {
+    //	  List<BrowsePath> paths = new ArrayList<BrowsePath>();
+    //
+    //	  var rPath = new RelativePathElement(new NodeId(2, ""), Boolean.valueOf(true), true, new
+    // QualifiedName(2, "Foo") );
+    //	  paths.add(new BrowsePath(new NodeId(2, "HelloWorld/MyObject"), new RelativePath(new
+    // RelativePathElement[] {rPath})));
+    //
+    //	  client.translateBrowsePaths(null);
+
+    ArrayList<BrowsePath> list = new ArrayList<BrowsePath>();
+
+    list.add(
+        new BrowsePath(
+            Identifiers.ObjectsFolder,
+            new RelativePath(
+                new RelativePathElement[] {
+                  new RelativePathElement(
+                      Identifiers.HierarchicalReferences,
+                      false,
+                      true,
+                      new QualifiedName(2, "HelloWorld")),
+                  new RelativePathElement(
+                      Identifiers.HierarchicalReferences,
+                      false,
+                      true,
+                      new QualifiedName(2, "MyObject")),
+                  new RelativePathElement(
+                      Identifiers.HierarchicalReferences, false, true, new QualifiedName(2, "Bar"))
+                })));
+    //	  list.add(null);
+    //	  list.add(null);
+
+    TranslateBrowsePathsToNodeIdsResponse response = null;
+    try {
+      response = client.translateBrowsePaths(list).get();
+    } catch (InterruptedException e) {
+      // TODO Auto-generated catch block
+      e.printStackTrace();
+    } catch (ExecutionException e) {
+      // TODO Auto-generated catch block
+      e.printStackTrace();
+    }
+
+    BrowsePathResult result = l(response.getResults()).get(0);
+    StatusCode statusCode = result.getStatusCode();
+    //          logger.info("Status={}", statusCode);
+
+    result.getTargets()[0].getTargetId().toNodeId(client.getNamespaceTable());
+
+    try {
+      UaNode node =
+          client
+              .getAddressSpace()
+              .getNode(
+                  result.getTargets()[0].getTargetId().toNodeId(client.getNamespaceTable()).get());
+
+      System.out.println("Node from path--->" + node);
+
+      for (AttributeId attr : AttributeId.VARIABLE_ATTRIBUTES) {
+        String value = "";
+        if (node.readAttribute(attr).getValue().isNull()) {
+          value = "NULL";
+        } else {
+          value = node.readAttribute(attr).getValue().getValue().toString();
+        }
+
+        System.out.println("value:" + value);
+
+        //                log.debug("Pushing {} to stream", p.toString());
+
+      }
+    } catch (UaException e) {
+      // TODO Auto-generated catch block
+      e.printStackTrace();
+    }
+
+    System.out.println(
+        "targets:" + result.getTargets()[0].getTargetId().toNodeId(client.getNamespaceTable()));
+
+    l(result.getTargets())
+        .forEach(target -> System.out.println("TargetId={}" + target.getTargetId()));
+
+    //          future.complete(client);
+
+  }
+
   private void createOPCUASubscriptions() {
     Set<NodeId> nodeSet = new HashSet<NodeId>();
     /**
@@ -928,6 +1025,8 @@ public class OPCUALink extends AbstractLink implements Runnable {
     System.out.println("Browsing node...");
     //    FIXME:Make root default when no namespaceIndex/identifier pair is specified
     //    browseNodeWithReferences("", client, Identifiers.RootFolder);
+
+    browsePath(endpointURL, client, null);
 
     switch (rootIdentifierType) {
       case Guid:
