@@ -46,6 +46,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -69,6 +70,7 @@ import org.eclipse.milo.opcua.stack.core.types.builtin.NodeId;
 import org.eclipse.milo.opcua.stack.core.types.builtin.Variant;
 import org.eclipse.milo.opcua.stack.core.types.enumerated.BrowseDirection;
 import org.eclipse.milo.opcua.stack.core.types.enumerated.BrowseResultMask;
+import org.eclipse.milo.opcua.stack.core.types.enumerated.IdType;
 import org.eclipse.milo.opcua.stack.core.types.enumerated.NodeClass;
 import org.eclipse.milo.opcua.stack.core.types.structured.BrowseDescription;
 import org.eclipse.milo.opcua.stack.core.types.structured.BrowseResult;
@@ -168,6 +170,12 @@ public class OPCUALink extends AbstractLink implements Runnable {
 
   private static final Logger internalLogger = Logger.getLogger(OPCUALink.class.getName());
 
+  private int rootNamespaceIndex;
+
+  private String rootIdentifier; // Relative to the rootNamespaceIndex
+
+  private IdType rootIdentifierType; // Relative to the rootNamespaceIndex
+
   LinkAction startAction =
       new LinkAction("query_all", "Query All OPCUA Server Data") {
         @Override
@@ -220,6 +228,14 @@ public class OPCUALink extends AbstractLink implements Runnable {
     spec.addOption("endpoint_url", OptionType.STRING).withRequired(true);
     spec.addOption("parameters_namespace", OptionType.STRING).withRequired(true);
 
+    Spec rootNodeIDSpec = new Spec();
+
+    rootNodeIDSpec.addOption("namespaceIndex", OptionType.INTEGER).withRequired(true);
+    rootNodeIDSpec.addOption("identifier", OptionType.STRING).withRequired(true);
+    rootNodeIDSpec.addOption("identifierType", OptionType.STRING).withRequired(true);
+
+    spec.addOption("rootNodeID", OptionType.MAP).withRequired(true).withSpec(rootNodeIDSpec);
+
     return spec;
   }
 
@@ -245,6 +261,13 @@ public class OPCUALink extends AbstractLink implements Runnable {
     this.endpointURL = config.getString("endpoint_url");
 
     this.parametersNamespace = config.getString("parameters_namespace");
+
+    Map<Object, Object> root = config.getMap("rootNodeID");
+
+    rootNamespaceIndex = (int) root.get("namespaceIndex");
+
+    rootIdentifier = (String) root.get("identifier");
+    rootIdentifierType = IdType.valueOf((String) root.get("identifierType"));
 
     mdb = YamcsServer.getServer().getInstance(yamcsInstance).getXtceDb();
 
@@ -903,7 +926,26 @@ public class OPCUALink extends AbstractLink implements Runnable {
 
     // start browsing at root folder
     System.out.println("Browsing node...");
-    browseNodeWithReferences("", client, Identifiers.RootFolder);
+    //    FIXME:Make root default when no namespaceIndex/identifier pair is specified
+    //    browseNodeWithReferences("", client, Identifiers.RootFolder);
+
+    switch (rootIdentifierType) {
+      case Guid:
+        //		FIXME
+        break;
+      case Numeric:
+        browseNodeWithReferences(
+            "", client, new NodeId(rootNamespaceIndex, Integer.parseInt(rootIdentifier)));
+        break;
+      case Opaque:
+        //		FIXME
+        break;
+      case String:
+        browseNodeWithReferences("", client, new NodeId(rootNamespaceIndex, rootIdentifier));
+        break;
+      default:
+        break;
+    }
 
     future.complete(client);
   }
