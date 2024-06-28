@@ -35,24 +35,29 @@ dataLinks:
  
   - name: tm_ocpua
     class: com.windhoverlabs.yamcs.opcua.OPCUALink
-    # stream: tm_realtime
-    opcua_stream: "opcua_params"
-    #endpoint_url: "opc.tcp://localhost:4840/"
-    endpoint_url: "opc.tcp://localhost:12686/milo"
-    parameters_namespace: "/instruments/tvac"
-    # packetPreprocessorClassName: org.yamcs.tctm.cfs.CfsPacketPreprocessor
-    # packetPreprocessorArgs:
-    #   checkSequence: false
-    #   byteOrder: LITTLE_ENDIAN
-    #   useLocalGenerationTime: false
-    #   #errorDetection:
-    #   #tcoService:
-    #   timestampFormat: CFE_SB_TIME_32_16_SUBS
-    #   checkSequence: false
-    #   timeEncoding:
-    #     epoch: CUSTOM
-    #     epochUTC: "1970-01-01T00:00:00Z"
-    #     timeIncludesLeapSeconds: true
+    opcuaStream: "opcua_params"
+    endpointUrl: "opc.tcp://localhost:12686/milo"
+    discoveryUrl: "opc.tcp://pop-os:12686/milo/"
+    parametersNamespace: "/instruments/tvac"
+  
+    queryAllNodesAtStartup: true # defaults to false
+    
+    # i 	Numeric (UInteger)
+    # s 	String (String)
+    # g 	Guid (Guid)
+    # b 	Opaque (ByteString)
+
+
+    rootNodeID: #Link starts browsing at this node
+      namespaceIndex: 0
+      # "ns=2;s=HelloWorld/MyObject"
+      identifierType: Numeric
+      # identifier: "HelloWorld"  #84 is Root
+      # 0:Root,0:Objects,2:HelloWorld,2:MyObject,2:Bar
+      # 0:Root,0:Objects,2:HelloWorld,2:ArrayTypes
+      # ns=2;s=HelloWorld/MyObject
+      # ns=2;s=HelloWorld/MyObject/2:Bar
+      identifier: "84"  #84 is Root
 
 #  - name: tm_ocpua
 #    class: com.windhoverlabs.yamcs.opcua.OPCUALink
@@ -86,11 +91,11 @@ mdb:
       args: 
        file: "mdb/refmdb.xls"
        enableAliasReferences: false
-    - type: "xtce"
-      spec: "mdb/cfs-ccsds.xml"
-      subLoaders:
-      - type: "xtce"
-        spec: "mdb/PPD.xml"
+#    - type: "xtce"
+#      spec: "mdb/cfs-ccsds.xml"
+#      subLoaders:
+#      - type: "xtce"
+#        spec: "mdb/PPD.xml"
 #      - type: "xtce"
 #        spec: "mdb/CPD.xml"
 

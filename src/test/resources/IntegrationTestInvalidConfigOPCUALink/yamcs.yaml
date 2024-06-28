@@ -1,5 +1,5 @@
 instances:
- - IntegrationTestNoOCOUALink
+ - IntegrationTestInvalidConfigOPCUALink
  
 services:
   - class: org.yamcs.http.HttpServer
@@ -7,6 +7,6 @@ services:
       port: 9190
 
 incomingDir: /tmp/yamcs-incoming
-dataDir: /tmp/yamcs-IntegrationTestNoOCOUALink-data
+dataDir: /tmp/yamcs-IntegrationTestInvalidConfigOCOUALink-data
 
 secretKey: testtest

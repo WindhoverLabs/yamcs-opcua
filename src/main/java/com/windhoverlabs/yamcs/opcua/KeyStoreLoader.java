@@ -56,14 +56,14 @@ class KeyStoreLoader {
 
       SelfSignedCertificateBuilder builder =
           new SelfSignedCertificateBuilder(keyPair)
-              .setCommonName("Eclipse Milo Example Client")
-              .setOrganization("digitalpetri")
+              .setCommonName("FrameWorXServer")
+              .setOrganization("ICONICS")
               .setOrganizationalUnit("dev")
               .setLocalityName("Folsom")
-              .setStateName("CA")
+              .setStateName("TX")
               .setCountryCode("US")
-              .setApplicationUri("urn:eclipse:milo:examples:client")
-              .addDnsName("localhost")
+              .setApplicationUri("urn:js-ec4-darac:ICONICS:FrameWorXServer")
+              .addDnsName("js-ec4-darac")
               .addIpAddress("127.0.0.1");
 
       // Get as many hostnames and IP addresses as we can listed in the certificate.
@@ -98,6 +98,48 @@ class KeyStoreLoader {
               .toArray(X509Certificate[]::new);
 
       PublicKey serverPublicKey = clientCertificate.getPublicKey();
+      clientKeyPair = new KeyPair(serverPublicKey, (PrivateKey) clientPrivateKey);
+    }
+
+    return this;
+  }
+
+  KeyStoreLoader loadFromCert(Path baseDir, X509Certificate certificate) throws Exception {
+    KeyStore keyStore = KeyStore.getInstance("PKCS12");
+
+    Path serverKeyStore = baseDir.resolve("example-client.pfx");
+
+    logger.info("Loading KeyStore at {}", serverKeyStore);
+
+    if (!Files.exists(serverKeyStore)) {
+      keyStore.load(null, PASSWORD);
+
+      KeyPair keyPair = SelfSignedCertificateGenerator.generateRsaKeyPair(2048);
+
+      keyStore.setKeyEntry(
+          CLIENT_ALIAS, keyPair.getPrivate(), PASSWORD, new X509Certificate[] {certificate});
+      try (OutputStream out = Files.newOutputStream(serverKeyStore)) {
+        keyStore.store(out, PASSWORD);
+      }
+    } else {
+      try (InputStream in = Files.newInputStream(serverKeyStore)) {
+        keyStore.load(in, PASSWORD);
+      }
+    }
+
+    Key clientPrivateKey = keyStore.getKey(CLIENT_ALIAS, PASSWORD);
+
+    System.out.println("clientPrivateKey-->" + clientPrivateKey);
+    if (clientPrivateKey instanceof PrivateKey) {
+      clientCertificate = (X509Certificate) keyStore.getCertificate(CLIENT_ALIAS);
+
+      clientCertificateChain =
+          Arrays.stream(keyStore.getCertificateChain(CLIENT_ALIAS))
+              .map(X509Certificate.class::cast)
+              .toArray(X509Certificate[]::new);
+
+      PublicKey serverPublicKey = clientCertificate.getPublicKey();
+      System.out.println("serverPublicKey-->" + serverPublicKey);
       clientKeyPair = new KeyPair(serverPublicKey, (PrivateKey) clientPrivateKey);
     }
 

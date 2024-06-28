@@ -86,19 +86,33 @@ public class OPCUALinkTest extends AbstractOPCUAIntegrationTest {
       e.printStackTrace();
     }
     super.before();
+    
+    Thread.sleep(5000);
 
     var mdbClient = yamcsClient.createMissionDatabaseClient(yamcsInstance);
+
+    var it =
+        mdbClient
+            .listParameters(
+                org.yamcs.client.mdb.MissionDatabaseClient.ListOptions.system("/instruments/tvac"))
+            .get()
+            .iterator();
+
+    it.forEachRemaining(
+        p -> {
+          System.out.println("p-->" + p);
+        });
 
     var refParam =
         mdbClient
             .getParameter(
-                "/instruments/tvac/ns=2;s=HelloWorld/Dynamic/Boolean/Variable/Boolean/Value")
+                "/instruments/tvac/ns=2-s=HelloWorld/Dynamic/Boolean/Variable/Boolean/Value")
             .get(200, TimeUnit.MILLISECONDS);
     assertNotNull(refParam);
 
     assertEquals(
         refParam.getQualifiedName(),
-        "/instruments/tvac/ns=2;s=HelloWorld/Dynamic/Boolean/Variable/Boolean/Value");
+        "/instruments/tvac/ns=2-s=HelloWorld/Dynamic/Boolean/Variable/Boolean/Value");
 
     OPCUALink l =
         (OPCUALink)
