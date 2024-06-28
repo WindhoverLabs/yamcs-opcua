@@ -187,6 +187,29 @@ public class OPCUALink extends AbstractLink implements Runnable {
 
   private IdType rootIdentifierType; // Relative to the rootNamespaceIndex
 
+  //  NOTE:ALWAYS re-use params as org.yamcs.parameter.ParameterRequestManager.param2RequestMap
+  //  uses the object inside a map that was added to the mdb for the very fist time.
+  //  If when publishing the PV, we create a new VariableParam object clients will NOT
+  //  receive real-time updates as the new object VariableParam inside the new PV won't match the
+  // one
+  //  inside org.yamcs.parameter.ParameterRequestManager.param2RequestMap since the object hashes
+  //  do not match (since VariableParam does not override its hash function).
+
+  private ConcurrentHashMap<NodeIDAttrPair, VariableParam> nodeIDToParamsMap =
+      new ConcurrentHashMap<NodeIDAttrPair, VariableParam>();
+
+  private OpcUaClient client;
+
+  protected AtomicLong inCount = new AtomicLong(0);
+
+  private String endpointURL;
+
+  private Status linkStatus = Status.OK;
+
+  private String discoverURL;
+
+  private boolean queryAllNodesAtStartup;
+
   LinkAction startAction =
       new LinkAction("query_all", "Query All OPCUA Server Data") {
         @Override
@@ -209,27 +232,6 @@ public class OPCUALink extends AbstractLink implements Runnable {
         }
       };
 
-  //  NOTE:ALWAYS re-use params as org.yamcs.parameter.ParameterRequestManager.param2RequestMap
-  //  uses the object inside a map that was added to the mdb for the very fist time.
-  //  If when publishing the PV, we create a new VariableParam object clients will NOT
-  //  receive real-time updates as the new object VariableParam inside the new PV won't match the
-  // one
-  //  inside org.yamcs.parameter.ParameterRequestManager.param2RequestMap since the object hashes
-  //  do not match (since VariableParam does not override its hash function).
-
-  private ConcurrentHashMap<NodeIDAttrPair, VariableParam> nodeIDToParamsMap =
-      new ConcurrentHashMap<NodeIDAttrPair, VariableParam>();
-
-  private OpcUaClient client;
-
-  protected AtomicLong inCount = new AtomicLong(0);
-
-  private String endpointURL;
-
-  private Status linkStatus = Status.OK;
-
-  private String discoverURL;
-
   @Override
   public Spec getSpec() {
     Spec spec = new Spec();
@@ -237,10 +239,11 @@ public class OPCUALink extends AbstractLink implements Runnable {
     /* Define our configuration parameters. */
     spec.addOption("name", OptionType.STRING).withRequired(true);
     spec.addOption("class", OptionType.STRING).withRequired(true);
-    spec.addOption("opcua_stream", OptionType.STRING).withRequired(true);
-    spec.addOption("endpoint_url", OptionType.STRING).withRequired(true);
-    spec.addOption("discovery_url", OptionType.STRING).withRequired(true);
-    spec.addOption("parameters_namespace", OptionType.STRING).withRequired(true);
+    spec.addOption("opcuaStream", OptionType.STRING).withRequired(true);
+    spec.addOption("endpointUrl", OptionType.STRING).withRequired(true);
+    spec.addOption("discoveryUrl", OptionType.STRING).withRequired(true);
+    spec.addOption("parametersNamespace", OptionType.STRING).withRequired(true);
+    spec.addOption("queryAllNodesAtStartup", OptionType.BOOLEAN).withRequired(false);
 
     Spec rootNodeIDSpec = new Spec();
 
@@ -268,15 +271,17 @@ public class OPCUALink extends AbstractLink implements Runnable {
     }
     YarchDatabaseInstance ydb = YarchDatabase.getInstance(yamcsInstance);
 
-    this.opcuaStreamName = config.getString("opcua_stream");
+    this.opcuaStreamName = config.getString("opcuaStream");
 
     opcuaStream = getStream(ydb, opcuaStreamName);
 
-    this.endpointURL = config.getString("endpoint_url");
+    this.endpointURL = config.getString("endpointUrl");
 
-    this.discoverURL = config.getString("discovery_url");
+    this.discoverURL = config.getString("discoveryUrl");
 
-    this.parametersNamespace = config.getString("parameters_namespace");
+    this.parametersNamespace = config.getString("parametersNamespace");
+
+    queryAllNodesAtStartup = config.getBoolean("queryAllNodesAtStartup", false);
 
     Map<Object, Object> root = config.getMap("rootNodeID");
 
@@ -286,13 +291,35 @@ public class OPCUALink extends AbstractLink implements Runnable {
     rootIdentifierType = IdType.valueOf((String) root.get("identifierType"));
 
     mdb = YamcsServer.getServer().getInstance(yamcsInstance).getXtceDb();
-
-    opcuaInit();
   }
 
   private void opcuaInit() {
     //  	FIXME:Might need to move this function to start(), maybe...
-    runOPCUAClient();
+
+    createOPCUAAttrAggregateType();
+    mdb.addParameterType(opcuaAttrsType, true);
+
+    final CompletableFuture<OpcUaClient> future = new CompletableFuture<>();
+
+    client = null;
+    try {
+      client = configureClient();
+
+      connectToOPCUAServer(client, future);
+
+      browseOPCUATree(client, future);
+
+    } catch (Exception e) {
+      // TODO Auto-generated catch block
+      e.printStackTrace();
+      return;
+    }
+    try {
+      createOPCUASubscriptions();
+    } catch (Exception e) {
+      // TODO Auto-generated catch block
+      e.printStackTrace();
+    }
   }
 
   private static Stream getStream(YarchDatabaseInstance ydb, String streamName) {
@@ -321,10 +348,6 @@ public class OPCUALink extends AbstractLink implements Runnable {
 
   @Override
   public void doEnable() {
-    /* Create and start the new thread. */
-    thread = new Thread(this);
-    thread.setName(this.getClass().getSimpleName() + "-" + linkName);
-    thread.start();
     linkStatus = Status.OK;
   }
 
@@ -356,6 +379,12 @@ public class OPCUALink extends AbstractLink implements Runnable {
         });
     addAction(startAction);
     startAction.setEnabled(true);
+
+    /* Create and start the new thread. */
+    thread = new Thread(this);
+    thread.setName(this.getClass().getSimpleName() + "-" + linkName);
+    thread.start();
+
     notifyStarted();
   }
 
@@ -375,6 +404,10 @@ public class OPCUALink extends AbstractLink implements Runnable {
   @Override
   public void run() {
 
+    opcuaInit();
+    if (queryAllNodesAtStartup) {
+      queryAllOPCUAData();
+    }
     /* Enter our main loop */
     while (isRunningAndEnabled()) {
       /* Iterate through all our watch keys. */
@@ -674,7 +707,7 @@ public class OPCUALink extends AbstractLink implements Runnable {
     inCount.set(0);
   }
 
-  private OpcUaClient createClient() throws Exception {
+  private OpcUaClient configureClient() throws Exception {
     Path securityTempDir = Paths.get(System.getProperty("java.io.tmpdir"), "client", "security");
     Files.createDirectories(securityTempDir);
     if (!Files.exists(securityTempDir)) {
@@ -1052,6 +1085,7 @@ public class OPCUALink extends AbstractLink implements Runnable {
   }
 
   private void createOPCUASubscriptions() {
+    createDataChangeListener();
     Set<NodeId> nodeSet = new HashSet<NodeId>();
     /**
      * FIXME:This is super inefficient... The reason we collect these nodeIDs in a set is because
@@ -1109,7 +1143,15 @@ public class OPCUALink extends AbstractLink implements Runnable {
     // synchronous connect
     System.out.println("Connecting...");
     client.connect().get();
+  }
 
+  /**
+   * Browses the tree on the OPCUA server and maps them to YAMCS Parameters.
+   *
+   * @param client
+   * @param future
+   */
+  private void browseOPCUATree(OpcUaClient client, CompletableFuture<OpcUaClient> future) {
     // start browsing at root folder
     System.out.println("Browsing node...");
     //    FIXME:Make root default when no namespaceIndex/identifier pair is specified
@@ -1142,121 +1184,102 @@ public class OPCUALink extends AbstractLink implements Runnable {
     future.complete(client);
   }
 
-  public void runOPCUAClient() {
-
-    createOPCUAAttrAggregateType();
-    mdb.addParameterType(opcuaAttrsType, true);
-
-    final CompletableFuture<OpcUaClient> future = new CompletableFuture<>();
-
-    client = null;
+  private void createDataChangeListener() {
     try {
-      client = createClient();
-
-      connectToOPCUAServer(client, future);
       opcuaSubscription = ManagedSubscription.create(client, 1);
-    } catch (Exception e) {
+    } catch (UaException e) {
       // TODO Auto-generated catch block
       e.printStackTrace();
-      return;
     }
-    try {
-      opcuaSubscription.addDataChangeListener(
-          (items, values) -> {
-            for (int i = 0; i < items.size(); i++) {
-              NodeIDAttrPair nodeAttrKey =
-                  new NodeIDAttrPair(items.get(i).getNodeId(), AttributeId.Value);
+    opcuaSubscription.addDataChangeListener(
+        (items, values) -> {
+          for (int i = 0; i < items.size(); i++) {
+            NodeIDAttrPair nodeAttrKey =
+                new NodeIDAttrPair(items.get(i).getNodeId(), AttributeId.Value);
+            log.debug(
+                "subscription value received: item={}, value={}",
+                items.get(i).getNodeId(),
+                values.get(i).getValue());
+
+            log.debug(
+                "Pushing new PV for param name {} which is mapped to NodeID {}",
+                nodeIDToParamsMap.get(nodeAttrKey),
+                items.get(i).getNodeId());
+
+            TupleDefinition tdef = gftdef.copy();
+            List<Object> cols = new ArrayList<>(4 + 1);
+            long gentime = timeService.getMissionTime();
+            cols.add(gentime);
+            cols.add(parametersNamespace);
+            cols.add(0);
+            cols.add(gentime);
+
+            /**
+             * TODO:Not sure if this is the best way to do this since the aggregate values will be
+             * partially updated. Another potential approach might be to decouple the live OPCUA
+             * data(subscriptions) via namespaces. For example; have a "special" namespace called
+             * "subscriptions" that ONLY gets updated with items. And maybe another namespace for
+             * static data...maybe.
+             *
+             * <p>Another option is to flatten everything and have no aggregate types at all. That
+             * approach might even simplify the code quite a bit...
+             *
+             * <p>Another question worth answering before moving forward is to find whether or not
+             * it is concrete in the OPCUA protocol what data can change in real time and which data
+             * is "static". Not sure if there is any "static" data given that clients have the
+             * ability of writing to values... might be worth a test.
+             */
+
+            // FIMXE:Properly add aggregatevalues instead of getPV flat values
+            //            AggregateValue v = new
+            // AggregateValue(fileStoreAggrType.getMemberNames());
+            //            v.setMemberValue("total", ValueUtility.getSint64Value(ts / 1024));
+            //            v.setMemberValue("available", ValueUtility.getSint64Value(av / 1024));
+            //            v.setMemberValue("percentageUse", ValueUtility.getFloatValue(perc));
+            //
+            //            ParameterValue pv = new ParameterValue(storep.param);
+            //            pv.setGenerationTime(gentime);
+            //            pv.setAcquisitionTime(gentime);
+            //            pv.setAcquisitionStatus(AcquisitionStatus.ACQUIRED);
+            //            pv.setEngValue(v);
+
+            log.debug(
+                "Data({}) chnage triggered for {}",
+                values.get(i).getValue(),
+                nodeIDToParamsMap.get(nodeAttrKey));
+
+            if (nodeIDToParamsMap.get(nodeAttrKey) == null) {
+              log.debug("No parameter mapping found for {}", nodeAttrKey.nodeID);
+              continue;
+            } else {
               log.debug(
-                  "subscription value received: item={}, value={}",
-                  items.get(i).getNodeId(),
-                  values.get(i).getValue());
-
-              log.debug(
-                  "Pushing new PV for param name {} which is mapped to NodeID {}",
-                  nodeIDToParamsMap.get(nodeAttrKey),
-                  items.get(i).getNodeId());
-
-              TupleDefinition tdef = gftdef.copy();
-              List<Object> cols = new ArrayList<>(4 + 1);
-              long gentime = timeService.getMissionTime();
-              cols.add(gentime);
-              cols.add(parametersNamespace);
-              cols.add(0);
-              cols.add(gentime);
-
-              /**
-               * TODO:Not sure if this is the best way to do this since the aggregate values will be
-               * partially updated. Another potential approach might be to decouple the live OPCUA
-               * data(subscriptions) via namespaces. For example; have a "special" namespace called
-               * "subscriptions" that ONLY gets updated with items. And maybe another namespace for
-               * static data...maybe.
-               *
-               * <p>Another option is to flatten everything and have no aggregate types at all. That
-               * approach might even simplify the code quite a bit...
-               *
-               * <p>Another question worth answering before moving forward is to find whether or not
-               * it is concrete in the OPCUA protocol what data can change in real time and which
-               * data is "static". Not sure if there is any "static" data given that clients have
-               * the ability of writing to values... might be worth a test.
-               */
-
-              // FIMXE:Properly add aggregatevalues instead of getPV flat values
-              //            AggregateValue v = new
-              // AggregateValue(fileStoreAggrType.getMemberNames());
-              //            v.setMemberValue("total", ValueUtility.getSint64Value(ts / 1024));
-              //            v.setMemberValue("available", ValueUtility.getSint64Value(av / 1024));
-              //            v.setMemberValue("percentageUse", ValueUtility.getFloatValue(perc));
-              //
-              //            ParameterValue pv = new ParameterValue(storep.param);
-              //            pv.setGenerationTime(gentime);
-              //            pv.setAcquisitionTime(gentime);
-              //            pv.setAcquisitionStatus(AcquisitionStatus.ACQUIRED);
-              //            pv.setEngValue(v);
-
-              log.debug(
-                  "Data({}) chnage triggered for {}",
-                  values.get(i).getValue(),
-                  nodeIDToParamsMap.get(nodeAttrKey));
-
-              if (nodeIDToParamsMap.get(nodeAttrKey) == null) {
-                log.debug("No parameter mapping found for {}", nodeAttrKey.nodeID);
-                continue;
-              } else {
-                log.debug(
-                    String.format(
-                        "parameter mapping found for {} and {}",
-                        nodeAttrKey.nodeID,
-                        nodeAttrKey.attrID));
-              }
-
-              if (values.get(i).getValue() != null) {
-                tdef.addColumn(
-                    nodeIDToParamsMap.get(nodeAttrKey).getQualifiedName(),
-                    DataType.PARAMETER_VALUE);
-
-                cols.add(
-                    getPV(
-                        nodeIDToParamsMap.get(nodeAttrKey),
-                        Instant.now().toEpochMilli(),
-                        values.get(i).getValue().toString()));
-
-                Tuple t = new Tuple(tdef, cols);
-                opcuaStream.emitTuple(t);
-                inCount.getAndAdd(1);
-              } else {
-                // TODO:Add some type emptyValue count for OPS.
-                log.warn(
-                    "Data chnage triggered for {}, but it empty. This should not happen.",
-                    nodeIDToParamsMap.get(nodeAttrKey).getQualifiedName());
-              }
+                  String.format(
+                      "parameter mapping found for {} and {}",
+                      nodeAttrKey.nodeID,
+                      nodeAttrKey.attrID));
             }
-          });
 
-      createOPCUASubscriptions();
-    } catch (Exception e) {
-      // TODO Auto-generated catch block
-      e.printStackTrace();
-    }
+            if (values.get(i).getValue() != null) {
+              tdef.addColumn(
+                  nodeIDToParamsMap.get(nodeAttrKey).getQualifiedName(), DataType.PARAMETER_VALUE);
+
+              cols.add(
+                  getPV(
+                      nodeIDToParamsMap.get(nodeAttrKey),
+                      Instant.now().toEpochMilli(),
+                      values.get(i).getValue().toString()));
+
+              Tuple t = new Tuple(tdef, cols);
+              opcuaStream.emitTuple(t);
+              inCount.getAndAdd(1);
+            } else {
+              // TODO:Add some type emptyValue count for OPS.
+              log.warn(
+                  "Data chnage triggered for {}, but it empty. This should not happen.",
+                  nodeIDToParamsMap.get(nodeAttrKey).getQualifiedName());
+            }
+          }
+        });
   }
 
   /**
