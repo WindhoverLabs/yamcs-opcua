@@ -688,10 +688,6 @@ public class OPCUALink extends AbstractLink implements Runnable {
 
     System.out.println("pkiDir.getAbsolutePath():" + pkiDir.getAbsolutePath());
     trustListManager = new DefaultTrustListManager(pkiDir);
-
-    //    FIXME:Make url configurable
-    //    endpointURL = "opc.tcp://localhost:4840/";
-    //    TODO:Make discovery URL configurable
     List<EndpointDescription> endpoints = DiscoveryClient.getEndpoints(discoverURL).get();
 
     //    FIXME:At the moment, we do not support certificates...
