@@ -45,6 +45,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -56,6 +57,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.logging.Logger;
+import org.eclipse.milo.opcua.sdk.client.AddressSpace.BrowseOptions;
 import org.eclipse.milo.opcua.sdk.client.OpcUaClient;
 import org.eclipse.milo.opcua.sdk.client.api.config.OpcUaClientConfig;
 import org.eclipse.milo.opcua.sdk.client.nodes.UaNode;
@@ -67,6 +69,7 @@ import org.eclipse.milo.opcua.stack.core.Identifiers;
 import org.eclipse.milo.opcua.stack.core.UaException;
 import org.eclipse.milo.opcua.stack.core.security.DefaultTrustListManager;
 import org.eclipse.milo.opcua.stack.core.types.builtin.DataValue;
+import org.eclipse.milo.opcua.stack.core.types.builtin.LocalizedText;
 import org.eclipse.milo.opcua.stack.core.types.builtin.NodeId;
 import org.eclipse.milo.opcua.stack.core.types.builtin.QualifiedName;
 import org.eclipse.milo.opcua.stack.core.types.builtin.StatusCode;
@@ -731,20 +734,32 @@ public class OPCUALink extends AbstractLink implements Runnable {
     return OpcUaClient.create(builder);
   }
 
-  private void browseNodes() {
-    // ObjectNode
-    // List<? extends UaNode> nodes = client
-    //     .getAddressSpace().browseNodes(browseRoot,
-    // BrowseOptions.builder().setNodeClassMask(uint(NodeClass.Object.getValue())).build());
+  private void browseNodes(String indent, OpcUaClient client, NodeId browseRoot) {
+    //     ObjectNode
+    List<? extends UaNode> nodes = null;
+    try {
+      nodes =
+          client
+              .getAddressSpace()
+              .browseNodes(
+                  browseRoot,
+                  BrowseOptions.builder()
+                      .setNodeClassMask(
+                          uint(NodeClass.Object.getValue() | NodeClass.Variable.getValue()))
+                      .build());
+    } catch (UaException e) {
+      // TODO Auto-generated catch block
+      e.printStackTrace();
+    }
     //     System.out.println("Regular nodes-->" + nodes);
 
-    //     for (UaNode node : nodes) {
-    //       // logger.info("{} Node={}", indent, node.getBrowseName().getName());
-    //       System.out.println("NODE:" + node.getNodeId());
+    for (UaNode node : nodes) {
+      //       // logger.info("{} Node={}", indent, node.getBrowseName().getName());
+      System.out.println("NODE:" + node.getNodeId());
 
-    //       // recursively browse to children
-    //       // browseNode(indent + "  ", client, node.getNodeId());
-    //   }
+      //       // recursively browse to children
+      //            browseNode(indent + "  ", client, node.getNodeId());
+    }
   }
 
   private void browseNodeWithReferences(String indent, OpcUaClient client, NodeId browseRoot) {
@@ -822,21 +837,9 @@ public class OPCUALink extends AbstractLink implements Runnable {
           for (AttributeId attr : AttributeId.values()) {
 
             ParameterType ptype = getBasicType(mdb, Yamcs.Value.Type.STRING);
-            Parameter p =
-                VariableParam.getForFullyQualifiedName(
-                    qualifiedName(
-                        parametersNamespace
-                            + NameDescription.PATH_SEPARATOR
-                            + rd.getNodeId()
-                                .toNodeId(client.getNamespaceTable())
-                                .get()
-                                .toParseableString()
-                                .replace(";", "-")
-                            + NameDescription.PATH_SEPARATOR
-                            + rd.getNodeClass()
-                            + NameDescription.PATH_SEPARATOR
-                            + rd.getBrowseName().getName(),
-                        attr.toString()));
+
+            String opcuaTranslatedQName = translateNodeToParamQName(client, rd, attr);
+            Parameter p = VariableParam.getForFullyQualifiedName(opcuaTranslatedQName);
 
             p.setParameterType(ptype);
 
@@ -875,15 +878,104 @@ public class OPCUALink extends AbstractLink implements Runnable {
     }
   }
 
+  private String translateNodeToParamQName(
+      OpcUaClient client, ReferenceDescription rd, AttributeId attr) {
+
+    UaNode node = null;
+    try {
+      node =
+          client
+              .getAddressSpace()
+              .getNode(rd.getNodeId().toNodeId(client.getNamespaceTable()).get());
+    } catch (UaException e) {
+      // TODO Auto-generated catch block
+      e.printStackTrace();
+    }
+    String displayName = null;
+    LocalizedText localizedDisplayName = null;
+    try {
+
+      displayName = node.readAttribute(AttributeId.DisplayName).getValue().getValue().toString();
+
+      localizedDisplayName =
+          (LocalizedText) (node.readAttribute(AttributeId.DisplayName).getValue().getValue());
+    } catch (UaException e) {
+      // TODO Auto-generated catch block
+      e.printStackTrace();
+    }
+    String opcuaTranslatedQName =
+        qualifiedName(
+            parametersNamespace
+                + NameDescription.PATH_SEPARATOR
+                + rd.getNodeId()
+                    .toNodeId(client.getNamespaceTable())
+                    .get()
+                    .toParseableString()
+                    .replace(";", "-")
+                + NameDescription.PATH_SEPARATOR
+                + localizedDisplayName.getText(),
+            attr.toString());
+
+    return opcuaTranslatedQName;
+  }
+
+  /**
+   * Same as translateNodeToParamQName but uses display name from the node instead of the
+   *
+   * @param client
+   * @param rd
+   * @param attr
+   * @return
+   */
+  private String translateNodeDisplayNameToParamQName(
+      OpcUaClient client, ReferenceDescription rd, AttributeId attr) {
+    String opcuaTranslatedQName =
+        qualifiedName(
+            parametersNamespace
+                + NameDescription.PATH_SEPARATOR
+                + rd.getNodeId()
+                    .toNodeId(client.getNamespaceTable())
+                    .get()
+                    .toParseableString()
+                    .replace(";", "-"),
+            attr.toString());
+
+    UaNode node = null;
+    try {
+      node =
+          client
+              .getAddressSpace()
+              .getNode(rd.getNodeId().toNodeId(client.getNamespaceTable()).get());
+    } catch (UaException e) {
+      // TODO Auto-generated catch block
+      e.printStackTrace();
+    }
+
+    String displayName = null;
+    LocalizedText localizedDisplayName = null;
+    try {
+      displayName = node.readAttribute(AttributeId.DisplayName).getValue().getValue().toString();
+
+      System.out.println(
+          "Intrinsic object type-->"
+              + node.readAttribute(AttributeId.DisplayName).getValue().getValue().getClass());
+
+      localizedDisplayName =
+          (LocalizedText) (node.readAttribute(AttributeId.DisplayName).getValue().getValue());
+    } catch (UaException e) {
+      // TODO Auto-generated catch block
+      e.printStackTrace();
+    }
+
+    //	    String opcuaTranslatedQName =
+    //	        qualifiedName(
+    //	            parametersNamespace + NameDescription.PATH_SEPARATOR +
+    // localizedDisplayName.getText(),
+    //	            attr.toString());
+    return opcuaTranslatedQName;
+  }
+
   private void browsePath(String indent, OpcUaClient client, NodeId browseRoot) {
-    //	  List<BrowsePath> paths = new ArrayList<BrowsePath>();
-    //
-    //	  var rPath = new RelativePathElement(new NodeId(2, ""), Boolean.valueOf(true), true, new
-    // QualifiedName(2, "Foo") );
-    //	  paths.add(new BrowsePath(new NodeId(2, "HelloWorld/MyObject"), new RelativePath(new
-    // RelativePathElement[] {rPath})));
-    //
-    //	  client.translateBrowsePaths(null);
 
     ArrayList<BrowsePath> list = new ArrayList<BrowsePath>();
 
@@ -905,8 +997,6 @@ public class OPCUALink extends AbstractLink implements Runnable {
                   new RelativePathElement(
                       Identifiers.HierarchicalReferences, false, true, new QualifiedName(2, "Bar"))
                 })));
-    //	  list.add(null);
-    //	  list.add(null);
 
     TranslateBrowsePathsToNodeIdsResponse response = null;
     try {
@@ -919,11 +1009,13 @@ public class OPCUALink extends AbstractLink implements Runnable {
       e.printStackTrace();
     }
 
-    BrowsePathResult result = l(response.getResults()).get(0);
+    BrowsePathResult result = Arrays.asList(response.getResults()).get(0);
     StatusCode statusCode = result.getStatusCode();
     //          logger.info("Status={}", statusCode);
 
-    result.getTargets()[0].getTargetId().toNodeId(client.getNamespaceTable());
+    System.out.println(
+        "node id from relative path"
+            + result.getTargets()[0].getTargetId().toNodeId(client.getNamespaceTable()));
 
     try {
       UaNode node =
@@ -1028,18 +1120,22 @@ public class OPCUALink extends AbstractLink implements Runnable {
 
     browsePath(endpointURL, client, null);
 
+    NodeId nodeID = null;
     switch (rootIdentifierType) {
       case Guid:
         //		FIXME
         break;
       case Numeric:
-        browseNodeWithReferences(
-            "", client, new NodeId(rootNamespaceIndex, Integer.parseInt(rootIdentifier)));
+        nodeID = new NodeId(rootNamespaceIndex, Integer.parseInt(rootIdentifier));
+        browseNodes(endpointURL, client, nodeID);
+        browseNodeWithReferences("", client, nodeID);
         break;
       case Opaque:
         //		FIXME
         break;
       case String:
+        nodeID = new NodeId(rootNamespaceIndex, rootIdentifier);
+        browseNodes(endpointURL, client, nodeID);
         browseNodeWithReferences("", client, new NodeId(rootNamespaceIndex, rootIdentifier));
         break;
       default:
