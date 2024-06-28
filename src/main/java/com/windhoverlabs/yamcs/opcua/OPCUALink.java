@@ -228,6 +228,8 @@ public class OPCUALink extends AbstractLink implements Runnable {
 
   private Status linkStatus = Status.OK;
 
+  private String discoverURL;
+
   @Override
   public Spec getSpec() {
     Spec spec = new Spec();
@@ -237,6 +239,7 @@ public class OPCUALink extends AbstractLink implements Runnable {
     spec.addOption("class", OptionType.STRING).withRequired(true);
     spec.addOption("opcua_stream", OptionType.STRING).withRequired(true);
     spec.addOption("endpoint_url", OptionType.STRING).withRequired(true);
+    spec.addOption("discovery_url", OptionType.STRING).withRequired(true);
     spec.addOption("parameters_namespace", OptionType.STRING).withRequired(true);
 
     Spec rootNodeIDSpec = new Spec();
@@ -270,6 +273,8 @@ public class OPCUALink extends AbstractLink implements Runnable {
     opcuaStream = getStream(ydb, opcuaStreamName);
 
     this.endpointURL = config.getString("endpoint_url");
+
+    this.discoverURL = config.getString("discovery_url");
 
     this.parametersNamespace = config.getString("parameters_namespace");
 
@@ -687,8 +692,7 @@ public class OPCUALink extends AbstractLink implements Runnable {
     //    FIXME:Make url configurable
     //    endpointURL = "opc.tcp://localhost:4840/";
     //    TODO:Make discovery URL configurable
-    List<EndpointDescription> endpoints =
-        DiscoveryClient.getEndpoints("opc.tcp://pop-os:12686/milo/discovery").get();
+    List<EndpointDescription> endpoints = DiscoveryClient.getEndpoints(discoverURL).get();
 
     //    FIXME:At the moment, we do not support certificates...
     EndpointDescription selectedEndpoint = null;
@@ -891,11 +895,8 @@ public class OPCUALink extends AbstractLink implements Runnable {
       // TODO Auto-generated catch block
       e.printStackTrace();
     }
-    String displayName = null;
     LocalizedText localizedDisplayName = null;
     try {
-
-      displayName = node.readAttribute(AttributeId.DisplayName).getValue().getValue().toString();
 
       localizedDisplayName =
           (LocalizedText) (node.readAttribute(AttributeId.DisplayName).getValue().getValue());
