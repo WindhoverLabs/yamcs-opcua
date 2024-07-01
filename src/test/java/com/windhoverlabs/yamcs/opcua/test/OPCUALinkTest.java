@@ -86,7 +86,7 @@ public class OPCUALinkTest extends AbstractOPCUAIntegrationTest {
       e.printStackTrace();
     }
     super.before();
-    
+
     Thread.sleep(5000);
 
     var mdbClient = yamcsClient.createMissionDatabaseClient(yamcsInstance);
