@@ -46,6 +46,7 @@ import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -139,6 +140,12 @@ public class OPCUALink extends AbstractLink implements Runnable {
     }
   }
 
+  class NodePath {
+    String path;
+
+    HashMap<Object, Object> rootNodeID = new HashMap<Object, Object>();
+  }
+
   /* Configuration Defaults */
   static final String STREAM_NAME = "opcua_params";
 
@@ -218,6 +225,8 @@ public class OPCUALink extends AbstractLink implements Runnable {
 
   private boolean queryAllNodesAtStartup;
 
+  private ArrayList<NodePath> relativeNodePaths = new ArrayList<NodePath>();
+
   LinkAction startAction =
       new LinkAction("query_all", "Query All OPCUA Server Data") {
         @Override
@@ -268,7 +277,10 @@ public class OPCUALink extends AbstractLink implements Runnable {
         .withRequired(true)
         .withSpec(rootNodeIDSpec);
 
-    spec.addOption("nodePath", OptionType.MAP).withRequired(true).withSpec(nodePathSpec);
+    spec.addOption("nodePaths", OptionType.LIST)
+        .withElementType(OptionType.MAP)
+        .withRequired(true)
+        .withSpec(nodePathSpec);
 
     return spec;
   }
@@ -307,14 +319,14 @@ public class OPCUALink extends AbstractLink implements Runnable {
     rootIdentifier = (String) root.get("identifier");
     rootIdentifierType = IdType.valueOf((String) root.get("identifierType"));
 
-    root = config.getMap("nodePath");
+    List<Map<Object, Object>> nodePaths = config.getList("nodePaths");
 
-    relativeNodePath = (String) root.get("path");
-
-    //    rootNamespaceIndex = (int) root.get("namespaceIndex");
-    //
-    //    rootIdentifier = (String) root.get("identifier");
-    //    rootIdentifierType = IdType.valueOf((String) root.get("identifierType"));
+    for (Map<Object, Object> path : nodePaths) {
+      NodePath nodePath = new NodePath();
+      nodePath.path = (String) path.get("path");
+      nodePath.rootNodeID = (HashMap<Object, Object>) path.get("rootNodeID");
+      relativeNodePaths.add(nodePath);
+    }
 
     mdb = YamcsServer.getServer().getInstance(yamcsInstance).getXtceDb();
   }
@@ -570,11 +582,16 @@ public class OPCUALink extends AbstractLink implements Runnable {
      * FIXME:Need to come up with a mechanism to not update certain values that are up to date...
      * The more I think about it, it might make sense to have "static" and "runtime" namespaces
      */
+    pushTuple(tdef, cols);
+
+    inCount.getAndAdd(columnCount);
+  }
+
+  private synchronized void pushTuple(TupleDefinition tdef, List<Object> cols) {
+    Tuple t;
     t = new Tuple(tdef, cols);
 
     opcuaStream.emitTuple(t);
-
-    inCount.getAndAdd(columnCount);
   }
 
   private static ParameterType getOrCreateType(
@@ -873,17 +890,19 @@ public class OPCUALink extends AbstractLink implements Runnable {
           e.printStackTrace();
         }
 
-        addOPCUAPV(client, node);
+        if (node != null) {
+          addOPCUAPV(client, node);
 
-        log.debug(
-            "{} Node={}, Desc={}, Value={}", indent, rd.getBrowseName().getName(), desc, value);
+          log.debug(
+              "{} Node={}, Desc={}, Value={}", indent, rd.getBrowseName().getName(), desc, value);
 
-        if (rd.getIsForward()) {}
+          if (rd.getIsForward()) {}
 
-        // recursively browse to children
-        rd.getNodeId()
-            .toNodeId(client.getNamespaceTable())
-            .ifPresent(nodeId -> browseNodeWithReferences(indent + "  ", client, nodeId));
+          // recursively browse to children
+          rd.getNodeId()
+              .toNodeId(client.getNamespaceTable())
+              .ifPresent(nodeId -> browseNodeWithReferences(indent + "  ", client, nodeId));
+        }
       }
 
       System.out.println("browseRoot:" + browseRoot.toParseableString());
@@ -1196,7 +1215,9 @@ public class OPCUALink extends AbstractLink implements Runnable {
     //    FIXME:Make root default when no namespaceIndex/identifier pair is specified
     //    browseNodeWithReferences("", client, Identifiers.RootFolder);
 
-    browsePath(endpointURL, client, null, relativeNodePath);
+    for (var p : relativeNodePaths) {
+      browsePath(endpointURL, client, null, p.path);
+    }
 
     NodeId nodeID = null;
     switch (rootIdentifierType) {
@@ -1213,7 +1234,7 @@ public class OPCUALink extends AbstractLink implements Runnable {
         break;
       case String:
         nodeID = new NodeId(rootNamespaceIndex, rootIdentifier);
-        //        browseNodes(endpointURL, client, nodeID);
+        browseNodes(endpointURL, client, nodeID);
         browseNodeWithReferences("", client, new NodeId(rootNamespaceIndex, rootIdentifier));
         break;
       default:
@@ -1309,7 +1330,8 @@ public class OPCUALink extends AbstractLink implements Runnable {
                       values.get(i).getValue().toString()));
 
               Tuple t = new Tuple(tdef, cols);
-              opcuaStream.emitTuple(t);
+              //              opcuaStream.emitTuple(t);
+              pushTuple(tdef, cols);
               inCount.getAndAdd(1);
             } else {
               // TODO:Add some type emptyValue count for OPS.
