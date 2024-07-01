@@ -33,6 +33,7 @@
 
 package com.windhoverlabs.yamcs.opcua;
 
+import static com.google.common.collect.Lists.newArrayList;
 import static org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.uint;
 import static org.eclipse.milo.opcua.stack.core.util.ConversionUtil.l;
 import static org.eclipse.milo.opcua.stack.core.util.ConversionUtil.toList;
@@ -55,12 +56,15 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.logging.Logger;
 import org.eclipse.milo.opcua.sdk.client.AddressSpace.BrowseOptions;
 import org.eclipse.milo.opcua.sdk.client.OpcUaClient;
 import org.eclipse.milo.opcua.sdk.client.api.config.OpcUaClientConfig;
+import org.eclipse.milo.opcua.sdk.client.api.subscriptions.UaMonitoredItem;
+import org.eclipse.milo.opcua.sdk.client.api.subscriptions.UaSubscription;
 import org.eclipse.milo.opcua.sdk.client.nodes.UaNode;
 import org.eclipse.milo.opcua.sdk.client.subscriptions.ManagedDataItem;
 import org.eclipse.milo.opcua.sdk.client.subscriptions.ManagedSubscription;
@@ -70,23 +74,33 @@ import org.eclipse.milo.opcua.stack.core.Identifiers;
 import org.eclipse.milo.opcua.stack.core.UaException;
 import org.eclipse.milo.opcua.stack.core.security.DefaultTrustListManager;
 import org.eclipse.milo.opcua.stack.core.types.builtin.DataValue;
+import org.eclipse.milo.opcua.stack.core.types.builtin.ExtensionObject;
 import org.eclipse.milo.opcua.stack.core.types.builtin.LocalizedText;
 import org.eclipse.milo.opcua.stack.core.types.builtin.NodeId;
 import org.eclipse.milo.opcua.stack.core.types.builtin.QualifiedName;
 import org.eclipse.milo.opcua.stack.core.types.builtin.StatusCode;
 import org.eclipse.milo.opcua.stack.core.types.builtin.Variant;
+import org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.UInteger;
 import org.eclipse.milo.opcua.stack.core.types.enumerated.BrowseDirection;
 import org.eclipse.milo.opcua.stack.core.types.enumerated.BrowseResultMask;
 import org.eclipse.milo.opcua.stack.core.types.enumerated.IdType;
+import org.eclipse.milo.opcua.stack.core.types.enumerated.MonitoringMode;
 import org.eclipse.milo.opcua.stack.core.types.enumerated.NodeClass;
+import org.eclipse.milo.opcua.stack.core.types.enumerated.TimestampsToReturn;
 import org.eclipse.milo.opcua.stack.core.types.structured.BrowseDescription;
 import org.eclipse.milo.opcua.stack.core.types.structured.BrowsePath;
 import org.eclipse.milo.opcua.stack.core.types.structured.BrowsePathResult;
 import org.eclipse.milo.opcua.stack.core.types.structured.BrowseResult;
+import org.eclipse.milo.opcua.stack.core.types.structured.ContentFilter;
 import org.eclipse.milo.opcua.stack.core.types.structured.EndpointDescription;
+import org.eclipse.milo.opcua.stack.core.types.structured.EventFilter;
+import org.eclipse.milo.opcua.stack.core.types.structured.MonitoredItemCreateRequest;
+import org.eclipse.milo.opcua.stack.core.types.structured.MonitoringParameters;
+import org.eclipse.milo.opcua.stack.core.types.structured.ReadValueId;
 import org.eclipse.milo.opcua.stack.core.types.structured.ReferenceDescription;
 import org.eclipse.milo.opcua.stack.core.types.structured.RelativePath;
 import org.eclipse.milo.opcua.stack.core.types.structured.RelativePathElement;
+import org.eclipse.milo.opcua.stack.core.types.structured.SimpleAttributeOperand;
 import org.eclipse.milo.opcua.stack.core.types.structured.TranslateBrowsePathsToNodeIdsResponse;
 import org.slf4j.LoggerFactory;
 import org.yamcs.ConfigurationException;
@@ -227,6 +241,8 @@ public class OPCUALink extends AbstractLink implements Runnable {
 
   private ArrayList<NodePath> relativeNodePaths = new ArrayList<NodePath>();
 
+  private final AtomicLong clientHandles = new AtomicLong(1L);
+
   LinkAction startAction =
       new LinkAction("query_all", "Query All OPCUA Server Data") {
         @Override
@@ -346,6 +362,8 @@ public class OPCUALink extends AbstractLink implements Runnable {
       connectToOPCUAServer(client, future);
 
       browseOPCUATree(client, future);
+
+      subscribeToEvents(client);
 
     } catch (Exception e) {
       // TODO Auto-generated catch block
@@ -1053,7 +1071,9 @@ public class OPCUALink extends AbstractLink implements Runnable {
    * @param browseRoot
    * @param nodePath in the format of "0:Root,0:Objects,2:HelloWorld,2:MyObject,2:Bar"
    */
-  private void browsePath(String indent, OpcUaClient client, NodeId browseRoot, String nodePath) {
+  private void browsePath(String indent, OpcUaClient client, NodeId startingNode, String nodePath) {
+
+    System.out.println("startingNode-->" + startingNode);
     ArrayList<String> rPathTokens = new ArrayList<String>();
     ArrayList<RelativePathElement> relaitivePathElements = new ArrayList<RelativePathElement>();
 
@@ -1082,7 +1102,7 @@ public class OPCUALink extends AbstractLink implements Runnable {
 
     relaitivePathElements.toArray(elements);
 
-    list.add(new BrowsePath(Identifiers.ObjectsFolder, new RelativePath(elements)));
+    list.add(new BrowsePath(startingNode, new RelativePath(elements)));
 
     TranslateBrowsePathsToNodeIdsResponse response = null;
     try {
@@ -1097,6 +1117,13 @@ public class OPCUALink extends AbstractLink implements Runnable {
 
     BrowsePathResult result = Arrays.asList(response.getResults()).get(0);
     StatusCode statusCode = result.getStatusCode();
+
+    if (statusCode.isBad()) {
+      //    	FIXME:Make all these prints log messages
+      System.out.println("Bad status code:" + statusCode);
+      return;
+    }
+    System.out.println("statusCode-->" + statusCode);
     //          logger.info("Status={}", statusCode);
 
     System.out.println(
@@ -1212,36 +1239,48 @@ public class OPCUALink extends AbstractLink implements Runnable {
   private void browseOPCUATree(OpcUaClient client, CompletableFuture<OpcUaClient> future) {
     // start browsing at root folder
     System.out.println("Browsing node...");
-    //    FIXME:Make root default when no namespaceIndex/identifier pair is specified
-    //    browseNodeWithReferences("", client, Identifiers.RootFolder);
 
     for (var p : relativeNodePaths) {
-      browsePath(endpointURL, client, null, p.path);
+
+      int namespaceIndex = (int) p.rootNodeID.get("namespaceIndex");
+
+      String identifier = (String) p.rootNodeID.get("identifier");
+      IdType identifierType = IdType.valueOf((String) p.rootNodeID.get("identifierType"));
+
+      browsePath(
+          endpointURL, client, getNewNodeID(identifierType, namespaceIndex, identifier), p.path);
     }
 
+    NodeId nodeID = null;
+    nodeID = getNewNodeID(rootIdentifierType, rootNamespaceIndex, rootIdentifier);
+
+    //  FIXME:Make root default when no namespaceIndex/identifier pair is specified
+    browseNodeWithReferences("", client, nodeID);
+
+    future.complete(client);
+  }
+
+  private NodeId getNewNodeID(IdType rootIdentifierType, int NamespaceIndex, String Identifier) {
     NodeId nodeID = null;
     switch (rootIdentifierType) {
       case Guid:
         //		FIXME
         break;
       case Numeric:
-        nodeID = new NodeId(rootNamespaceIndex, Integer.parseInt(rootIdentifier));
+        nodeID = new NodeId(NamespaceIndex, Integer.parseInt(Identifier));
         //        browseNodes(endpointURL, client, nodeID);
-        browseNodeWithReferences("", client, nodeID);
         break;
       case Opaque:
         //		FIXME
         break;
       case String:
-        nodeID = new NodeId(rootNamespaceIndex, rootIdentifier);
-        browseNodes(endpointURL, client, nodeID);
-        browseNodeWithReferences("", client, new NodeId(rootNamespaceIndex, rootIdentifier));
+        nodeID = new NodeId(NamespaceIndex, Identifier);
+        //        browseNodes(endpointURL, client, nodeID);
         break;
       default:
         break;
     }
-
-    future.complete(client);
+    return nodeID;
   }
 
   private void createDataChangeListener() {
@@ -1420,4 +1459,85 @@ public class OPCUALink extends AbstractLink implements Runnable {
   //
   //    return pType;
   //  }
+
+  private void subscribeToEvents(OpcUaClient client)
+      throws InterruptedException, ExecutionException {
+    // create a subscription and a monitored item
+    UaSubscription subscription = client.getSubscriptionManager().createSubscription(1000.0).get();
+
+    ReadValueId readValueId =
+        new ReadValueId(
+            Identifiers.Server, AttributeId.EventNotifier.uid(), null, QualifiedName.NULL_VALUE);
+
+    // client handle must be unique per item
+    UInteger clientHandle = uint(clientHandles.getAndIncrement());
+
+    EventFilter eventFilter =
+        new EventFilter(
+            new SimpleAttributeOperand[] {
+              new SimpleAttributeOperand(
+                  Identifiers.BaseEventType,
+                  new QualifiedName[] {new QualifiedName(0, "EventId")},
+                  AttributeId.Value.uid(),
+                  null),
+              new SimpleAttributeOperand(
+                  Identifiers.BaseEventType,
+                  new QualifiedName[] {new QualifiedName(0, "EventType")},
+                  AttributeId.Value.uid(),
+                  null),
+              new SimpleAttributeOperand(
+                  Identifiers.BaseEventType,
+                  new QualifiedName[] {new QualifiedName(0, "Severity")},
+                  AttributeId.Value.uid(),
+                  null),
+              new SimpleAttributeOperand(
+                  Identifiers.BaseEventType,
+                  new QualifiedName[] {new QualifiedName(0, "Time")},
+                  AttributeId.Value.uid(),
+                  null),
+              new SimpleAttributeOperand(
+                  Identifiers.BaseEventType,
+                  new QualifiedName[] {new QualifiedName(0, "Message")},
+                  AttributeId.Value.uid(),
+                  null)
+            },
+            new ContentFilter(null));
+
+    MonitoringParameters parameters =
+        new MonitoringParameters(
+            clientHandle,
+            0.0,
+            ExtensionObject.encode(client.getStaticSerializationContext(), eventFilter),
+            uint(10),
+            true);
+
+    MonitoredItemCreateRequest request =
+        new MonitoredItemCreateRequest(readValueId, MonitoringMode.Reporting, parameters);
+
+    List<UaMonitoredItem> items =
+        subscription.createMonitoredItems(TimestampsToReturn.Both, newArrayList(request)).get();
+
+    // do something with the value updates
+    UaMonitoredItem monitoredItem = items.get(0);
+
+    final AtomicInteger eventCount = new AtomicInteger(0);
+
+    monitoredItem.setEventConsumer(
+        (item, vs) -> {
+          //            logger.info(
+          //                "Event Received from {}",
+          //                item.getReadValueId().getNodeId());
+
+          System.out.println("Event Received from" + item.getReadValueId().getNodeId());
+
+          for (int i = 0; i < vs.length; i++) {
+            //                logger.info("\tvariant[{}]: {}", i, vs[i].getValue());
+            System.out.println("tvariant:" + vs[i].getValue());
+          }
+
+          if (eventCount.incrementAndGet() == 3) {
+            //                future.complete(client);
+          }
+        });
+  }
 }
