@@ -25,25 +25,18 @@
         rootNodeID: #Link starts browsing at this node
           namespaceIndex: 0
           identifierType: Numeric
-          identifier: "84"  #84 is Root
+          identifier: "85"  #85 is Root
 
       - path: "2:HelloWorld,2:MyObject,2:Foo"
         rootNodeID: #Link starts browsing at this node
           namespaceIndex: 0
           identifierType: Numeric
-          identifier: "84"  #84 is Root
+          identifier: "85"  #85 is Objects
 
 
     rootNodeID: #Link starts browsing at this node
       namespaceIndex: 0
-      # identifier: "s=ac:DARAC/JSC/EA/EC/EC4/B32/ChA_PXIe_06/Channel/001/DE"
-      # "ns=2;s=HelloWorld/MyObject"
       identifierType: Numeric
-      # identifier: "HelloWorld"  #84 is Root
-      # 0:Root,0:Objects,2:HelloWorld,2:MyObject,2:Bar
-      # 0:Root,0:Objects,2:HelloWorld,2:ArrayTypes
-      # ns=2;s=HelloWorld/MyObject
-      # ns=2;s=HelloWorld/MyObject/2:Bar
       identifier: "84"  #84 is Root
 
 # 0:Root,0:Objects,2:HelloWorld,2:MyObject,2:Bar
