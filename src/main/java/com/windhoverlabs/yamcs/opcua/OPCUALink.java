@@ -1329,8 +1329,6 @@ public class OPCUALink extends AbstractLink implements Runnable {
                       Instant.now().toEpochMilli(),
                       values.get(i).getValue().toString()));
 
-              Tuple t = new Tuple(tdef, cols);
-              //              opcuaStream.emitTuple(t);
               pushTuple(tdef, cols);
               inCount.getAndAdd(1);
             } else {
