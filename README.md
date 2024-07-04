@@ -48,3 +48,18 @@
 
 
 ```
+
+###  Notes For Users
+
+- At startup, the link will connect to the OPCUA server that is specified on the YAML config, in the format specified above.
+  Users can track the status of the link by looking at the "/yamcs/pop-os/tm_ocpua/OPCUAStatusParam" PV.
+  Depending on the configuration and server performance/configuration, the link may take a while to read the nodes from the server.
+  In particular the link may spend a lot of time at startup on the "OPCUA_INIT_TREE" state. It is completely normal
+  if it spends a lot of time on that state, just let it be .
+  Once the value of "/yamcs/pop-os/tm_ocpua/OPCUAStatusParam" is set to "OPCUA_OK", it means the link is done with
+  all initial setup(data subscriptions, nodes/tree browsing, YAMCS PV mapping, etc) . Again; all of this
+  is highly dependent on configuration (depth of specified root nodes for example), OPCUA server implementation
+  you are connecting to and even the speed of your network.
+  
+  
+

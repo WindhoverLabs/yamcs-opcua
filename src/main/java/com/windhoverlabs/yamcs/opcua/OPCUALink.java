@@ -71,7 +71,9 @@ import org.eclipse.milo.opcua.stack.core.AttributeId;
 import org.eclipse.milo.opcua.stack.core.Identifiers;
 import org.eclipse.milo.opcua.stack.core.UaException;
 import org.eclipse.milo.opcua.stack.core.security.DefaultTrustListManager;
+import org.eclipse.milo.opcua.stack.core.types.builtin.ByteString;
 import org.eclipse.milo.opcua.stack.core.types.builtin.DataValue;
+import org.eclipse.milo.opcua.stack.core.types.builtin.DateTime;
 import org.eclipse.milo.opcua.stack.core.types.builtin.ExtensionObject;
 import org.eclipse.milo.opcua.stack.core.types.builtin.LocalizedText;
 import org.eclipse.milo.opcua.stack.core.types.builtin.NodeId;
@@ -79,6 +81,7 @@ import org.eclipse.milo.opcua.stack.core.types.builtin.QualifiedName;
 import org.eclipse.milo.opcua.stack.core.types.builtin.StatusCode;
 import org.eclipse.milo.opcua.stack.core.types.builtin.Variant;
 import org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.UInteger;
+import org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.UShort;
 import org.eclipse.milo.opcua.stack.core.types.enumerated.BrowseDirection;
 import org.eclipse.milo.opcua.stack.core.types.enumerated.BrowseResultMask;
 import org.eclipse.milo.opcua.stack.core.types.enumerated.IdType;
@@ -112,6 +115,7 @@ import org.yamcs.YamcsServer;
 import org.yamcs.parameter.ParameterValue;
 import org.yamcs.parameter.SystemParametersProducer;
 import org.yamcs.parameter.SystemParametersService;
+import org.yamcs.protobuf.Event.EventSeverity;
 import org.yamcs.protobuf.Yamcs;
 import org.yamcs.protobuf.Yamcs.Value.Type;
 import org.yamcs.tctm.AbstractLink;
@@ -136,6 +140,7 @@ import org.yamcs.yarch.Tuple;
 import org.yamcs.yarch.TupleDefinition;
 import org.yamcs.yarch.YarchDatabase;
 import org.yamcs.yarch.YarchDatabaseInstance;
+import org.yamcs.yarch.protobuf.Db.Event;
 
 public class OPCUALink extends AbstractLink implements Runnable, SystemParametersProducer {
 
@@ -1501,11 +1506,48 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
           //          System.out.println("Event Received from" + item.getReadValueId().getNodeId());
 
+          StringBuilder eventText = new StringBuilder();
+
+          ByteString eventId;
+          NodeId eventType;
+          UShort eventSeverity;
+          DateTime eventTime;
+          LocalizedText eventMessage;
+
           for (int i = 0; i < vs.length; i++) {
             internalLogger.info("\tvariant[{}]: {}", i, vs[i].getValue());
+
+            //            eventText.append("" + i + ":" + vs[i].getValue());
             //            System.out.println("tvariant:" + vs[i].getValue());
             //            System.out.println("tvariant class:" + vs[i].getValue().getClass());
           }
+
+          eventId = (ByteString) vs[0].getValue();
+          eventType = (NodeId) vs[1].getValue();
+          eventSeverity = (UShort) vs[2].getValue();
+          eventTime = (DateTime) vs[3].getValue();
+          eventMessage = (LocalizedText) vs[4].getValue();
+
+          //          FIXME:Map these values to YAMCS API
+          eventText.append("eventId:" + eventId);
+          eventText.append("\n");
+          eventText.append("eventType:" + eventType);
+          eventText.append("\n");
+          eventText.append("eventSeverity:" + eventSeverity);
+          eventText.append("\n");
+          eventText.append("eventTime:" + eventTime);
+          eventText.append("\n");
+          eventText.append("eventMessage:" + eventMessage);
+          org.yamcs.yarch.protobuf.Db.Event ev =
+              Event.newBuilder()
+                  .setGenerationTime(YamcsServer.getTimeService(yamcsInstance).getMissionTime())
+                  .setGenerationTime(YamcsServer.getTimeService(yamcsInstance).getMissionTime())
+                  .setSource(this.linkName)
+                  .setType(this.linkName)
+                  .setMessage(eventText.toString())
+                  .setSeverity(EventSeverity.INFO)
+                  .build();
+          eventProducer.sendEvent(ev);
 
           if (eventCount.incrementAndGet() == 3) {
             //                future.complete(client);
