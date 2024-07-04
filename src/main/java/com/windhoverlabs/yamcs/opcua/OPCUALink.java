@@ -37,6 +37,7 @@ import static com.google.common.collect.Lists.newArrayList;
 import static org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.uint;
 import static org.eclipse.milo.opcua.stack.core.util.ConversionUtil.l;
 import static org.eclipse.milo.opcua.stack.core.util.ConversionUtil.toList;
+import static org.yamcs.parameter.SystemParametersService.getPV;
 import static org.yamcs.xtce.NameDescription.qualifiedName;
 
 import com.google.gson.JsonObject;
@@ -111,15 +112,19 @@ import org.yamcs.ValidationException;
 import org.yamcs.YConfiguration;
 import org.yamcs.YamcsServer;
 import org.yamcs.parameter.ParameterValue;
+import org.yamcs.parameter.SystemParametersProducer;
+import org.yamcs.parameter.SystemParametersService;
 import org.yamcs.protobuf.Yamcs;
 import org.yamcs.protobuf.Yamcs.Value.Type;
 import org.yamcs.tctm.AbstractLink;
 import org.yamcs.tctm.Link;
+import org.yamcs.tctm.Link.Status;
 import org.yamcs.tctm.LinkAction;
 import org.yamcs.tctm.PacketInputStream;
 import org.yamcs.tctm.ParameterSink;
 import org.yamcs.utils.ValueUtility;
 import org.yamcs.xtce.AggregateParameterType;
+import org.yamcs.xtce.EnumeratedParameterType;
 import org.yamcs.xtce.Member;
 import org.yamcs.xtce.NameDescription;
 import org.yamcs.xtce.Parameter;
@@ -134,7 +139,7 @@ import org.yamcs.yarch.TupleDefinition;
 import org.yamcs.yarch.YarchDatabase;
 import org.yamcs.yarch.YarchDatabaseInstance;
 
-public class OPCUALink extends AbstractLink implements Runnable {
+public class OPCUALink extends AbstractLink implements Runnable, SystemParametersProducer {
 
   class NodeIDAttrPair {
     NodeId nodeID;
@@ -158,6 +163,15 @@ public class OPCUALink extends AbstractLink implements Runnable {
     String path;
 
     HashMap<Object, Object> rootNodeID = new HashMap<Object, Object>();
+  }
+
+  enum OPCUAStatus {
+    OPCUA_INIT_CONFIG,
+    OPCUA_INIT_TREE,
+    OPCUA_INIT_EVENTS,
+    OPCUA_INIT_DATA_SUBSCRIPTION,
+    OPCUA_INIT_ALL_DATA_QUERY,
+    OPCUA_OK
   }
 
   /* Configuration Defaults */
@@ -242,6 +256,10 @@ public class OPCUALink extends AbstractLink implements Runnable {
   private ArrayList<NodePath> relativeNodePaths = new ArrayList<NodePath>();
 
   private final AtomicLong clientHandles = new AtomicLong(1L);
+
+  private Parameter OPCUAStatusParam;
+
+  private OPCUAStatus currentOPCUAStatus;
 
   LinkAction startAction =
       new LinkAction("query_all", "Query All OPCUA Server Data") {
@@ -361,8 +379,11 @@ public class OPCUALink extends AbstractLink implements Runnable {
 
       connectToOPCUAServer(client, future);
 
+      currentOPCUAStatus = OPCUAStatus.OPCUA_INIT_TREE;
+
       browseOPCUATree(client, future);
 
+      currentOPCUAStatus = OPCUAStatus.OPCUA_INIT_EVENTS;
       subscribeToEvents(client);
 
     } catch (Exception e) {
@@ -371,6 +392,7 @@ public class OPCUALink extends AbstractLink implements Runnable {
       return;
     }
     try {
+      currentOPCUAStatus = OPCUAStatus.OPCUA_INIT_DATA_SUBSCRIPTION;
       createOPCUASubscriptions();
     } catch (Exception e) {
       // TODO Auto-generated catch block
@@ -446,12 +468,19 @@ public class OPCUALink extends AbstractLink implements Runnable {
 
   @Override
   protected void doStop() {
+
+    //    FIXME
+    try {
+      client.getSession();
+      client.disconnect().get();
+    } catch (InterruptedException | ExecutionException e) {
+      // TODO Auto-generated catch block
+      e.printStackTrace();
+    }
     if (thread != null) {
       thread.interrupt();
     }
 
-    //    FIXME
-    //                        client.disconnect().get();
     //      Stack.releaseSharedResources();
 
     notifyStopped();
@@ -462,18 +491,20 @@ public class OPCUALink extends AbstractLink implements Runnable {
 
     opcuaInit();
     if (queryAllNodesAtStartup) {
+      //    	NOTE:I'm not sure if queryAllOPCUAData should block...
+      currentOPCUAStatus = OPCUAStatus.OPCUA_INIT_ALL_DATA_QUERY;
       queryAllOPCUAData();
     }
     /* Enter our main loop */
     while (isRunningAndEnabled()) {
       /* Iterate through all our watch keys. */
 
+      currentOPCUAStatus = OPCUAStatus.OPCUA_OK;
     }
   }
 
   private void queryAllOPCUAData() {
 
-    Tuple t = null;
     TupleDefinition tdef = gftdef.copy();
     List<Object> cols = new ArrayList<>(4 + nodeIDToParamsMap.keySet().size());
 
@@ -1191,34 +1222,36 @@ public class OPCUALink extends AbstractLink implements Runnable {
         // TODO Auto-generated catch block
         e.printStackTrace();
       }
-      try {
-        switch (NodeClass.from((int) nodeClass.getValue())) {
-            //          case DataType:
-            //            break;
-            //          case Method:
-            //            break;
-            //          case Object:
-            //            break;
-            //          case ObjectType:
-            //            break;
-            //          case ReferenceType:
-            //            break;
-            //          case Unspecified:
-            //            break;
-          case Variable:
-            ManagedDataItem dataItem = opcuaSubscription.createDataItem(id);
-            log.debug("Status code for dataItem:{}", dataItem.getStatusCode());
-            break;
-            //          case VariableType:
-            //            break;
-            //          case View:
-            //            break;
-            //          default:
-            //            break;
+      if (nodeClass != null) {
+        try {
+          switch (NodeClass.from((int) nodeClass.getValue())) {
+              //          case DataType:
+              //            break;
+              //          case Method:
+              //            break;
+              //          case Object:
+              //            break;
+              //          case ObjectType:
+              //            break;
+              //          case ReferenceType:
+              //            break;
+              //          case Unspecified:
+              //            break;
+            case Variable:
+              ManagedDataItem dataItem = opcuaSubscription.createDataItem(id);
+              log.debug("Status code for dataItem:{}", dataItem.getStatusCode());
+              break;
+              //          case VariableType:
+              //            break;
+              //          case View:
+              //            break;
+              //          default:
+              //            break;
+          }
+        } catch (UaException e) {
+          // TODO Auto-generated catch block
+          e.printStackTrace();
         }
-      } catch (UaException e) {
-        // TODO Auto-generated catch block
-        e.printStackTrace();
       }
     }
   }
@@ -1533,11 +1566,68 @@ public class OPCUALink extends AbstractLink implements Runnable {
           for (int i = 0; i < vs.length; i++) {
             //                logger.info("\tvariant[{}]: {}", i, vs[i].getValue());
             System.out.println("tvariant:" + vs[i].getValue());
+            System.out.println("tvariant class:" + vs[i].getValue().getClass());
           }
 
           if (eventCount.incrementAndGet() == 3) {
             //                future.complete(client);
           }
         });
+  }
+
+  @Override
+  public void setupSystemParameters(SystemParametersService sysParamService) {
+    super.setupSystemParameters(sysParamService);
+    //	  currentOPCUAStatus;
+    OPCUAStatusParam =
+        sysParamService.createEnumeratedSystemParameter(
+            linkName + "/OPCUAStatusParam",
+            OPCUAStatus.class,
+            "The current status of OPCUA client");
+    EnumeratedParameterType spLinkStatusType =
+        (EnumeratedParameterType) OPCUAStatusParam.getParameterType();
+    spLinkStatusType
+        .enumValue(OPCUAStatus.OPCUA_INIT_CONFIG.name())
+        .setDescription(
+            "This link is in the configuration stage(Configuring OPCUA parameters such as certificates)");
+    spLinkStatusType
+        .enumValue(OPCUAStatus.OPCUA_INIT_TREE.name())
+        .setDescription(
+            "The link is parsing the OPCUA Tree and mapping them to PVs."
+                + "Depending on configuration, this can take a while.");
+    spLinkStatusType
+        .enumValue(OPCUAStatus.OPCUA_INIT_EVENTS.name())
+        .setDescription("The link is configuring and subscribing to OPCUA events");
+    spLinkStatusType
+        .enumValue(OPCUAStatus.OPCUA_INIT_DATA_SUBSCRIPTION.name())
+        .setDescription(
+            "The link is creating subscriptions for each node that was parsed from the tree"
+                + "that has a Value attribute.");
+    spLinkStatusType
+        .enumValue(OPCUAStatus.OPCUA_INIT_ALL_DATA_QUERY.name())
+        .setDescription(
+            "The link is querying all attributes of all parsed nodes."
+                + "This is can be configured to be done at startup.");
+    spLinkStatusType
+        .enumValue(OPCUAStatus.OPCUA_OK.name())
+        .setDescription(
+            "The link is done with all OPCUA initialization. It is in an usable state.");
+  }
+
+  @Override
+  public List<ParameterValue> getSystemParameters() {
+    long time = getCurrentTime();
+
+    ArrayList<ParameterValue> list = new ArrayList<>();
+
+    list.add(
+        org.yamcs.parameter.SystemParametersService.getPV(
+            OPCUAStatusParam, time, currentOPCUAStatus));
+    try {
+      super.collectSystemParameters(time, list);
+    } catch (Exception e) {
+      log.error("Exception caught when collecting link system parameters", e);
+    }
+    return list;
   }
 }
