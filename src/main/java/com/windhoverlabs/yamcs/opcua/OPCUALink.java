@@ -116,7 +116,6 @@ import org.yamcs.parameter.ParameterValue;
 import org.yamcs.parameter.SystemParametersProducer;
 import org.yamcs.parameter.SystemParametersService;
 import org.yamcs.protobuf.Event.EventSeverity;
-import org.yamcs.protobuf.Yamcs;
 import org.yamcs.protobuf.Yamcs.Value.Type;
 import org.yamcs.tctm.AbstractLink;
 import org.yamcs.tctm.Link;
@@ -125,8 +124,13 @@ import org.yamcs.tctm.LinkAction;
 import org.yamcs.tctm.PacketInputStream;
 import org.yamcs.tctm.ParameterSink;
 import org.yamcs.utils.ValueUtility;
+import org.yamcs.xtce.AbsoluteTimeParameterType;
 import org.yamcs.xtce.AggregateParameterType;
+import org.yamcs.xtce.BinaryParameterType;
+import org.yamcs.xtce.BooleanParameterType;
 import org.yamcs.xtce.EnumeratedParameterType;
+import org.yamcs.xtce.FloatParameterType;
+import org.yamcs.xtce.IntegerParameterType;
 import org.yamcs.xtce.Member;
 import org.yamcs.xtce.NameDescription;
 import org.yamcs.xtce.Parameter;
@@ -215,6 +219,8 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
   private DefaultTrustListManager trustListManager;
   private AggregateParameterType opcuaAttrsType;
+  private AggregateParameterType opcuaNodeIdNumericType;
+  private AggregateParameterType opcuaNodeIdStringType;
   private ManagedSubscription opcuaSubscription;
 
   private static final Logger internalLogger = LoggerFactory.getLogger(OPCUALink.class.getName());
@@ -372,6 +378,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     //  	FIXME:Might need to move this function to start(), maybe...
 
     createOPCUAAttrAggregateType();
+    createOPCUANodeIdTypes();
     mdb.addParameterType(opcuaAttrsType, true);
 
     final CompletableFuture<OpcUaClient> future = new CompletableFuture<>();
@@ -545,58 +552,471 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
             //                cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(),
             // "PlaceHolder"));
             //            columnCount++;
-            //            break;
+            break;
           case Method:
             //                tdef.addColumn(pair.getValue().getQualifiedName(),
             // DataType.PARAMETER_VALUE);
             //                cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(),
             // "PlaceHolder"));
             //            columnCount++;
-            //            break;
+            break;
           case Object:
             //                tdef.addColumn(pair.getValue().getQualifiedName(),
             // DataType.PARAMETER_VALUE);
             //                cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(),
             // "PlaceHolder"));
             //            columnCount++;
-            //            break;
+            for (AttributeId attr : AttributeId.VARIABLE_ATTRIBUTES) {
+
+              VariableParam p = nodeIDToParamsMap.get(new NodeIDAttrPair(nId, attr));
+
+              if (p.getParameterType() == null) {
+                String value = "";
+                if (node.readAttribute(attr).getValue().isNull()) {
+                  value = "NULL";
+                } else {
+                  value = node.readAttribute(attr).getValue().getValue().toString();
+                }
+
+                tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
+                cols.add(getPV(p, Instant.now().toEpochMilli(), value));
+                continue;
+              }
+
+              //                  System.out.println("Param value type:" + p.getParameterType());
+
+              switch (p.getParameterType().getValueType()) {
+                case AGGREGATE:
+                  {
+                    String value = "";
+                    if (node.readAttribute(attr).getValue().isNull()) {
+                      value = "NULL";
+                    } else {
+                      value = node.readAttribute(attr).getValue().getValue().toString();
+                    }
+
+                    tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
+                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
+                  }
+                  break;
+                case ARRAY:
+                  {
+                    String value = "";
+                    if (node.readAttribute(attr).getValue().isNull()) {
+                      value = "NULL";
+                    } else {
+                      value = node.readAttribute(attr).getValue().getValue().toString();
+                    }
+
+                    tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
+                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
+                  }
+                  break;
+                case BINARY:
+                  {
+                    String value = "";
+                    if (node.readAttribute(attr).getValue().isNull()) {
+                      value = "NULL";
+                    } else {
+                      value = node.readAttribute(attr).getValue().getValue().toString();
+                    }
+
+                    tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
+                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
+                  }
+                  break;
+                case BOOLEAN:
+                  {
+                    String value = "";
+                    if (node.readAttribute(attr).getValue().isNull()) {
+                      value = "NULL";
+                    } else {
+                      value = node.readAttribute(attr).getValue().getValue().toString();
+                    }
+
+                    tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
+                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
+                  }
+                  break;
+                case DOUBLE:
+                  {
+                    double value = 0;
+                    if (node.readAttribute(attr).getValue().isNull()) {
+                      //                      value = null;
+                      //                    	FIXME:Log warning
+                    } else {
+                      value = (double) node.readAttribute(attr).getValue().getValue();
+                    }
+
+                    tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
+                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
+                  }
+                  break;
+                case ENUMERATED:
+                  {
+                    String value = "";
+                    if (node.readAttribute(attr).getValue().isNull()) {
+                      value = "NULL";
+                    } else {
+                      value = node.readAttribute(attr).getValue().getValue().toString();
+                    }
+
+                    tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
+                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
+                  }
+                  break;
+                case FLOAT:
+                  {
+                    float value = 0;
+                    if (node.readAttribute(attr).getValue().isNull()) {
+                      //                      value = null;
+                      //                    	FIXME:Log warning
+                    } else {
+                      value = (float) node.readAttribute(attr).getValue().getValue();
+                    }
+
+                    tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
+                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
+                  }
+                  break;
+                case NONE:
+                  {
+                    String value = "";
+                    if (node.readAttribute(attr).getValue().isNull()) {
+                      value = "NULL";
+                    } else {
+                      value = node.readAttribute(attr).getValue().getValue().toString();
+                    }
+
+                    tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
+                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
+                  }
+                  break;
+                case SINT32:
+                  {
+                    int value = 0;
+                    if (node.readAttribute(attr).getValue().isNull()) {
+                      //                      value = null;
+                      //                    	FIXME:Log warning
+                    } else {
+                      value = (int) node.readAttribute(attr).getValue().getValue();
+                    }
+
+                    tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
+                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
+                  }
+                  break;
+                case SINT64:
+                  {
+                    long value = 0;
+                    if (node.readAttribute(attr).getValue().isNull()) {
+                      //                      value = null;
+                      //                    	FIXME:Log warning
+                    } else {
+                      value = (long) node.readAttribute(attr).getValue().getValue();
+                    }
+
+                    tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
+                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
+                  }
+                  break;
+                case STRING:
+                  {
+                    String value = "";
+                    if (node.readAttribute(attr).getValue().isNull()) {
+                      value = "NULL";
+                    } else {
+                      value = node.readAttribute(attr).getValue().getValue().toString();
+                    }
+
+                    tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
+                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
+                  }
+                  break;
+                case TIMESTAMP:
+                  {
+                    String value = "";
+                    if (node.readAttribute(attr).getValue().isNull()) {
+                      value = "NULL";
+                    } else {
+                      value = node.readAttribute(attr).getValue().getValue().toString();
+                    }
+
+                    tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
+                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
+                  }
+                  break;
+                case UINT32:
+                  {
+                    long value = 0;
+                    if (node.readAttribute(attr).getValue().isNull()) {
+                      //                      value = null;
+                      //                    	FIXME:Log warning
+                    } else {
+                      value = (long) node.readAttribute(attr).getValue().getValue();
+                    }
+
+                    tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
+                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
+                  }
+                  break;
+                case UINT64:
+                  {
+                    long value = 0;
+                    if (node.readAttribute(attr).getValue().isNull()) {
+                      //                      value = null;
+                      //                    	FIXME:Log warning
+                    } else {
+                      value = (long) node.readAttribute(attr).getValue().getValue();
+                    }
+
+                    tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
+                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
+                  }
+                  break;
+                default:
+                  break;
+              }
+
+              log.debug("Pushing {} to stream", p.toString());
+
+              columnCount++;
+            }
+            break;
           case ObjectType:
             //                tdef.addColumn(pair.getValue().getQualifiedName(),
             // DataType.PARAMETER_VALUE);
             //                cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(),
             // "PlaceHolder"));
             //            columnCount++;
-            //            break;
+            break;
           case ReferenceType:
             //                tdef.addColumn(pair.getValue().getQualifiedName(),
             // DataType.PARAMETER_VALUE);
             //                cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(),
             // "PlaceHolder"));
             //            columnCount++;
-            //            break;
+            break;
           case Unspecified:
             //                tdef.addColumn(pair.getValue().getQualifiedName(),
             // DataType.PARAMETER_VALUE);
             //                cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(),
             // "PlaceHolder"));
             //            columnCount++;
-            //            break;
+            break;
           case Variable:
-            //                tdef.addColumn(pair.getValue().getQualifiedName(),
-            // DataType.PARAMETER_VALUE);
-            //                cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(),
-            // "PlaceHolder"));
             for (AttributeId attr : AttributeId.VARIABLE_ATTRIBUTES) {
-              String value = "";
-              if (node.readAttribute(attr).getValue().isNull()) {
-                value = "NULL";
-              } else {
-                value = node.readAttribute(attr).getValue().getValue().toString();
-              }
 
               VariableParam p = nodeIDToParamsMap.get(new NodeIDAttrPair(nId, attr));
-              tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
-              cols.add(getPV(p, Instant.now().toEpochMilli(), value));
+
+              if (p.getParameterType() == null) {
+
+                String value = "";
+                if (node.readAttribute(attr).getValue().isNull()) {
+                  value = "NULL";
+                } else {
+                  value = node.readAttribute(attr).getValue().getValue().toString();
+                }
+
+                tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
+                cols.add(getPV(p, Instant.now().toEpochMilli(), value));
+                continue;
+              }
+
+              //              System.out.println("Param value type:" + p.getParameterType());
+
+              switch (p.getParameterType().getValueType()) {
+                case AGGREGATE:
+                  {
+                    String value = "";
+                    if (node.readAttribute(attr).getValue().isNull()) {
+                      value = "NULL";
+                    } else {
+                      value = node.readAttribute(attr).getValue().getValue().toString();
+                    }
+
+                    tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
+                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
+                  }
+                  break;
+                case ARRAY:
+                  {
+                    String value = "";
+                    if (node.readAttribute(attr).getValue().isNull()) {
+                      value = "NULL";
+                    } else {
+                      value = node.readAttribute(attr).getValue().getValue().toString();
+                    }
+
+                    tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
+                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
+                  }
+                  break;
+                case BINARY:
+                  {
+                    String value = "";
+                    if (node.readAttribute(attr).getValue().isNull()) {
+                      value = "NULL";
+                    } else {
+                      value = node.readAttribute(attr).getValue().getValue().toString();
+                    }
+
+                    tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
+                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
+                  }
+                  break;
+                case BOOLEAN:
+                  {
+                    String value = "";
+                    if (node.readAttribute(attr).getValue().isNull()) {
+                      value = "NULL";
+                    } else {
+                      value = node.readAttribute(attr).getValue().getValue().toString();
+                    }
+
+                    tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
+                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
+                  }
+                  break;
+                case DOUBLE:
+                  {
+                    double value = 0;
+                    if (node.readAttribute(attr).getValue().isNull()) {
+                      //                      value = null;
+                      //                    	FIXME:Log warning
+                    } else {
+                      value = (double) node.readAttribute(attr).getValue().getValue();
+                    }
+
+                    tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
+                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
+                  }
+                  break;
+                case ENUMERATED:
+                  {
+                    String value = "";
+                    if (node.readAttribute(attr).getValue().isNull()) {
+                      value = "NULL";
+                    } else {
+                      value = node.readAttribute(attr).getValue().getValue().toString();
+                    }
+
+                    tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
+                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
+                  }
+                  break;
+                case FLOAT:
+                  {
+                    float value = 0;
+                    if (node.readAttribute(attr).getValue().isNull()) {
+                      //                      value = null;
+                      //                    	FIXME:Log warning
+                    } else {
+                      value = (float) node.readAttribute(attr).getValue().getValue();
+                    }
+
+                    tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
+                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
+                  }
+                  break;
+                case NONE:
+                  {
+                    String value = "";
+                    if (node.readAttribute(attr).getValue().isNull()) {
+                      value = "NULL";
+                    } else {
+                      value = node.readAttribute(attr).getValue().getValue().toString();
+                    }
+
+                    tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
+                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
+                  }
+                  break;
+                case SINT32:
+                  {
+                    int value = 0;
+                    if (node.readAttribute(attr).getValue().isNull()) {
+                      //                      value = null;
+                      //                    	FIXME:Log warning
+                    } else {
+                      value = (int) node.readAttribute(attr).getValue().getValue();
+                    }
+
+                    tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
+                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
+                  }
+                  break;
+                case SINT64:
+                  {
+                    long value = 0;
+                    if (node.readAttribute(attr).getValue().isNull()) {
+                      //                      value = null;
+                      //                    	FIXME:Log warning
+                    } else {
+                      value = (long) node.readAttribute(attr).getValue().getValue();
+                    }
+
+                    tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
+                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
+                  }
+                  break;
+                case STRING:
+                  {
+                    String value = "";
+                    if (node.readAttribute(attr).getValue().isNull()) {
+                      value = "NULL";
+                    } else {
+                      value = node.readAttribute(attr).getValue().getValue().toString();
+                    }
+
+                    tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
+                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
+                  }
+                  break;
+                case TIMESTAMP:
+                  {
+                    String value = "";
+                    if (node.readAttribute(attr).getValue().isNull()) {
+                      value = "NULL";
+                    } else {
+                      value = node.readAttribute(attr).getValue().getValue().toString();
+                    }
+
+                    tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
+                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
+                  }
+                  break;
+                case UINT32:
+                  {
+                    long value = 0;
+                    if (node.readAttribute(attr).getValue().isNull()) {
+                      //                      value = null;
+                      //                    	FIXME:Log warning
+                    } else {
+                      value = (long) node.readAttribute(attr).getValue().getValue();
+                    }
+
+                    tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
+                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
+                  }
+                  break;
+                case UINT64:
+                  {
+                    long value = 0;
+                    if (node.readAttribute(attr).getValue().isNull()) {
+                      //                      value = null;
+                      //                    	FIXME:Log warning
+                    } else {
+                      value = (long) node.readAttribute(attr).getValue().getValue();
+                    }
+
+                    tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
+                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
+                  }
+                  break;
+                default:
+                  break;
+              }
 
               log.debug("Pushing {} to stream", p.toString());
 
@@ -621,6 +1041,12 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
             ////            break;
             //          default:
             //            break;
+          case VariableType:
+            break;
+          case View:
+            break;
+          default:
+            break;
         }
 
       } catch (UaException e) {
@@ -665,53 +1091,43 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
   public static ParameterType getBasicType(XtceDb mdb, Type type) {
     ParameterType pType = null;
     switch (type) {
-        //      case BINARY:
-        //        return getOrCreateType(mdb, "binary", unit, () -> new
-        // BinaryParameterType.Builder());
-        //      case BOOLEAN:
-        //        return getOrCreateType(mdb, "boolean", unit, () -> new
-        // BooleanParameterType.Builder());
+      case BINARY:
+        return getOrCreateType(mdb, "binary", () -> new BinaryParameterType.Builder());
+      case BOOLEAN:
+        return getOrCreateType(mdb, "boolean", () -> new BooleanParameterType.Builder());
       case STRING:
         pType = getOrCreateType(mdb, "string", () -> new StringParameterType.Builder());
         break;
-        //      case FLOAT:
-        //        return getOrCreateType(
-        //            mdb, "float32", unit, () -> new
-        // FloatParameterType.Builder().setSizeInBits(32));
-        //      case DOUBLE:
-        //        return getOrCreateType(
-        //            mdb, "float64", unit, () -> new
-        // FloatParameterType.Builder().setSizeInBits(64));
-        //      case SINT32:
-        //        return getOrCreateType(
-        //            mdb,
-        //            "sint32",
-        //            unit,
-        //            () -> new IntegerParameterType.Builder().setSizeInBits(32).setSigned(true));
-        //      case SINT64:
-        //        return getOrCreateType(
-        //            mdb,
-        //            "sint64",
-        //            unit,
-        //            () -> new IntegerParameterType.Builder().setSizeInBits(64).setSigned(true));
-        //      case UINT32:
-        //        return getOrCreateType(
-        //            mdb,
-        //            "uint32",
-        //            unit,
-        //            () -> new IntegerParameterType.Builder().setSizeInBits(32).setSigned(false));
-        //      case UINT64:
-        //        return getOrCreateType(
-        //            mdb,
-        //            "uint64",
-        //            unit,
-        //            () -> new IntegerParameterType.Builder().setSizeInBits(64).setSigned(false));
-        //      case TIMESTAMP:
-        //        return getOrCreateType(mdb, "time", unit, () -> new
-        // AbsoluteTimeParameterType.Builder());
-        //      case ENUMERATED:
-        //        return getOrCreateType(mdb, "enum", unit, () -> new
-        // EnumeratedParameterType.Builder());
+      case FLOAT:
+        return getOrCreateType(
+            mdb, "float32", () -> new FloatParameterType.Builder().setSizeInBits(32));
+      case DOUBLE:
+        return getOrCreateType(
+            mdb, "float64", () -> new FloatParameterType.Builder().setSizeInBits(64));
+      case SINT32:
+        return getOrCreateType(
+            mdb,
+            "sint32",
+            () -> new IntegerParameterType.Builder().setSizeInBits(32).setSigned(true));
+      case SINT64:
+        return getOrCreateType(
+            mdb,
+            "sint64",
+            () -> new IntegerParameterType.Builder().setSizeInBits(64).setSigned(true));
+      case UINT32:
+        return getOrCreateType(
+            mdb,
+            "uint32",
+            () -> new IntegerParameterType.Builder().setSizeInBits(32).setSigned(false));
+      case UINT64:
+        return getOrCreateType(
+            mdb,
+            "uint64",
+            () -> new IntegerParameterType.Builder().setSizeInBits(64).setSigned(false));
+      case TIMESTAMP:
+        return getOrCreateType(mdb, "time", () -> new AbsoluteTimeParameterType.Builder());
+      case ENUMERATED:
+        return getOrCreateType(mdb, "enum", () -> new EnumeratedParameterType.Builder());
     }
 
     return pType;
@@ -730,35 +1146,36 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     return pv;
   }
 
-  //  public static ParameterValue getPV(Parameter parameter, long time, double v) {
-  //    ParameterValue pv = getNewPv(parameter, time);
-  //    pv.setEngValue(ValueUtility.getDoubleValue(v));
-  //    return pv;
-  //  }
-  //
-  //  public static ParameterValue getPV(Parameter parameter, long time, float v) {
-  //    ParameterValue pv = getNewPv(parameter, time);
-  //    pv.setEngValue(ValueUtility.getFloatValue(v));
-  //    return pv;
-  //  }
-  //
-  //  public static ParameterValue getPV(Parameter parameter, long time, boolean v) {
-  //    ParameterValue pv = getNewPv(parameter, time);
-  //    pv.setEngValue(ValueUtility.getBooleanValue(v));
-  //    return pv;
-  //  }
-  //
-  //  public static ParameterValue getPV(Parameter parameter, long time, long v) {
-  //    ParameterValue pv = getNewPv(parameter, time);
-  //    pv.setEngValue(ValueUtility.getSint64Value(v));
-  //    return pv;
-  //  }
-  //
-  //  public static ParameterValue getUnsignedIntPV(Parameter parameter, long time, int v) {
-  //    ParameterValue pv = getNewPv(parameter, time);
-  //    pv.setEngValue(ValueUtility.getUint64Value(v));
-  //    return pv;
-  //  }
+  public static ParameterValue getPV(Parameter parameter, long time, double v) {
+    ParameterValue pv = getNewPv(parameter, time);
+    pv.setEngValue(ValueUtility.getDoubleValue(v));
+    return pv;
+  }
+
+  public static ParameterValue getPV(Parameter parameter, long time, float v) {
+    ParameterValue pv = getNewPv(parameter, time);
+    pv.setEngValue(ValueUtility.getFloatValue(v));
+    return pv;
+  }
+
+  public static ParameterValue getPV(Parameter parameter, long time, boolean v) {
+    ParameterValue pv = getNewPv(parameter, time);
+    pv.setEngValue(ValueUtility.getBooleanValue(v));
+    return pv;
+  }
+
+  public static ParameterValue getPV(Parameter parameter, long time, long v) {
+    ParameterValue pv = getNewPv(parameter, time);
+    pv.setEngValue(ValueUtility.getSint64Value(v));
+    return pv;
+  }
+
+  public static ParameterValue getUnsignedIntPV(Parameter parameter, long time, int v) {
+    ParameterValue pv = getNewPv(parameter, time);
+    pv.setEngValue(ValueUtility.getUint64Value(v));
+    return pv;
+  }
+
   //
   //  public static <T extends Enum<T>> ParameterValue getPV(Parameter parameter, long time, T v) {
   //    ParameterValue pv = getNewPv(parameter, time);
@@ -954,7 +1371,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
       for (AttributeId attr : AttributeId.values()) {
 
-        ParameterType ptype = getBasicType(mdb, Yamcs.Value.Type.STRING);
+        ParameterType ptype = OPCUAAttrTypeToParamType(attr, node);
 
         String opcuaTranslatedQName = translateNodeToParamQName(client, node, attr);
         Parameter p = VariableParam.getForFullyQualifiedName(opcuaTranslatedQName);
@@ -1378,65 +1795,163 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
         .setQualifiedName(qualifiedName(parametersNamespace, opcuaAttrsType.getName()));
   }
 
-  //  private ParameterType OPCUAAttrTypeToParamType(AttributeId attr) {
-  //    ParameterType pType = null;
-  //
-  //    switch (attr) {
-  //      case AccessLevel:
-  //        break;
-  //      case ArrayDimensions:
-  //        break;
-  //      case BrowseName:
-  //        pType = getBasicType(mdb, Type.STRING, null);
-  //        break;
-  //      case ContainsNoLoops:
-  //        break;
-  //      case DataType:
-  //        break;
-  //      case Description:
-  //        pType = getBasicType(mdb, Type.STRING, null);
-  //        break;
-  //      case DisplayName:
-  //        pType = getBasicType(mdb, Type.STRING, null);
-  //        break;
-  //      case EventNotifier:
-  //        break;
-  //      case Executable:
-  //        break;
-  //      case Historizing:
-  //        break;
-  //      case InverseName:
-  //        pType = getBasicType(mdb, Type.STRING, null);
-  //        break;
-  //      case IsAbstract:
-  //        break;
-  //      case MinimumSamplingInterval:
-  //        break;
-  //      case NodeClass:
-  //        break;
-  //      case NodeId:
-  //        pType = getBasicType(mdb, Type.STRING, null);
-  //        break;
-  //      case Symmetric:
-  //        break;
-  //      case UserAccessLevel:
-  //        break;
-  //      case UserExecutable:
-  //        break;
-  //      case UserWriteMask:
-  //        break;
-  //      case Value:
-  //        break;
-  //      case ValueRank:
-  //        break;
-  //      case WriteMask:
-  //        break;
-  //      default:
-  //        break;
-  //    }
-  //
-  //    return pType;
-  //  }
+  /**
+   * This method is here for future growth in case we find there is a benefit to using aggregate
+   * types
+   */
+  private void createOPCUANodeIdTypes() {
+    AggregateParameterType.Builder opcuaAttrsNumericNodeIdBuidlder =
+        new AggregateParameterType.Builder();
+
+    opcuaAttrsNumericNodeIdBuidlder.setName("OPCUA_Numeric_NodeId");
+    opcuaAttrsNumericNodeIdBuidlder.addMember(
+        new Member("namespaceIndex", getBasicType(mdb, Type.UINT64)));
+    opcuaAttrsNumericNodeIdBuidlder.addMember(
+        new Member("identifier", getBasicType(mdb, Type.UINT64)));
+
+    opcuaNodeIdNumericType = opcuaAttrsNumericNodeIdBuidlder.build();
+    ((NameDescription) opcuaNodeIdNumericType)
+        .setQualifiedName(qualifiedName(parametersNamespace, opcuaNodeIdNumericType.getName()));
+
+    AggregateParameterType.Builder opcuaAttrsTypeStringBuidlder =
+        new AggregateParameterType.Builder();
+
+    opcuaAttrsTypeStringBuidlder.setName("OPCUA_String_NodeId");
+    opcuaAttrsTypeStringBuidlder.addMember(
+        new Member("namespaceIndex", getBasicType(mdb, Type.UINT64)));
+    opcuaAttrsTypeStringBuidlder.addMember(
+        new Member("identifier", getBasicType(mdb, Type.STRING)));
+
+    opcuaNodeIdStringType = opcuaAttrsTypeStringBuidlder.build();
+    ((NameDescription) opcuaNodeIdStringType)
+        .setQualifiedName(qualifiedName(parametersNamespace, opcuaNodeIdStringType.getName()));
+
+    mdb.addParameterType(opcuaNodeIdNumericType, true);
+    mdb.addParameterType(opcuaNodeIdStringType, true);
+  }
+
+  private ParameterType OPCUAAttrTypeToParamType(AttributeId attr, UaNode node) {
+    ParameterType pType = null;
+
+    switch (attr) {
+      case AccessLevel:
+        pType = getBasicType(mdb, Type.STRING);
+        break;
+      case ArrayDimensions:
+        pType = getBasicType(mdb, Type.STRING);
+        break;
+      case BrowseName:
+        pType = getBasicType(mdb, Type.STRING);
+        break;
+      case ContainsNoLoops:
+        pType = getBasicType(mdb, Type.STRING);
+        break;
+      case DataType:
+        pType = getBasicType(mdb, Type.STRING);
+        break;
+      case Description:
+        pType = getBasicType(mdb, Type.STRING);
+        break;
+      case DisplayName:
+        pType = getBasicType(mdb, Type.STRING);
+        break;
+      case EventNotifier:
+        pType = getBasicType(mdb, Type.STRING);
+        break;
+      case Executable:
+        pType = getBasicType(mdb, Type.STRING);
+        break;
+      case Historizing:
+        pType = getBasicType(mdb, Type.STRING);
+        break;
+      case InverseName:
+        pType = getBasicType(mdb, Type.STRING);
+        break;
+      case IsAbstract:
+        pType = getBasicType(mdb, Type.STRING);
+        break;
+      case MinimumSamplingInterval:
+        pType = getBasicType(mdb, Type.STRING);
+        break;
+      case NodeClass:
+        pType = getBasicType(mdb, Type.STRING);
+        break;
+      case NodeId:
+        pType = getBasicType(mdb, Type.STRING);
+        break;
+      case Symmetric:
+        pType = getBasicType(mdb, Type.STRING);
+        break;
+      case UserAccessLevel:
+        pType = getBasicType(mdb, Type.STRING);
+        break;
+      case UserExecutable:
+        pType = getBasicType(mdb, Type.STRING);
+        break;
+      case UserWriteMask:
+        pType = getBasicType(mdb, Type.STRING);
+        break;
+      case Value:
+        try {
+
+          var value = node.readAttribute(attr).getValue();
+          client.readValue(0, TimestampsToReturn.Both, node.getNodeId());
+          try {
+            System.out.println(
+                "value-->"
+                    + client.readValue(0, TimestampsToReturn.Both, node.getNodeId()).get()
+                    + "for node:"
+                    + node.getNodeId());
+          } catch (InterruptedException | ExecutionException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+          }
+          if (value.isNotNull()) {
+
+            Object valueObject = value.getValue().getClass();
+
+            if (valueObject instanceof Short) {
+              pType = getBasicType(mdb, Type.SINT32);
+            }
+
+            if (valueObject instanceof Integer) {
+              pType = getBasicType(mdb, Type.SINT32);
+            }
+
+            if (valueObject instanceof Long) {
+              pType = getBasicType(mdb, Type.SINT64);
+            } else if (valueObject instanceof Double) {
+              pType = getBasicType(mdb, Type.DOUBLE);
+            } else if (valueObject instanceof Float) {
+              pType = getBasicType(mdb, Type.FLOAT);
+            } else if (valueObject instanceof Character) {
+              pType = getBasicType(mdb, Type.STRING);
+            } else if (valueObject instanceof String) {
+              pType = getBasicType(mdb, Type.STRING);
+
+            } else if (valueObject instanceof Boolean) {
+              pType = getBasicType(mdb, Type.BOOLEAN);
+            }
+          }
+
+        } catch (UaException e) {
+          // TODO Auto-generated catch block
+          e.printStackTrace();
+          //			FIXME:Add log message
+        }
+        break;
+      case ValueRank:
+        pType = getBasicType(mdb, Type.STRING);
+        break;
+      case WriteMask:
+        pType = getBasicType(mdb, Type.STRING);
+        break;
+      default:
+        break;
+    }
+
+    return pType;
+  }
 
   private void subscribeToEvents(OpcUaClient client)
       throws InterruptedException, ExecutionException {
