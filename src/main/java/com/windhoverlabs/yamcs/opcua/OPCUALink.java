@@ -1896,16 +1896,17 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
           var value = node.readAttribute(attr).getValue();
           client.readValue(0, TimestampsToReturn.Both, node.getNodeId());
-          try {
-            System.out.println(
-                "value-->"
-                    + client.readValue(0, TimestampsToReturn.Both, node.getNodeId()).get()
-                    + "for node:"
-                    + node.getNodeId());
-          } catch (InterruptedException | ExecutionException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-          }
+          //          try {
+          //            System.out.println(
+          //                "value-->"
+          //                    + client.readValue(0, TimestampsToReturn.Both,
+          // node.getNodeId()).get()
+          //                    + "for node:"
+          //                    + node.getNodeId());
+          //          } catch (InterruptedException | ExecutionException e) {
+          //            // TODO Auto-generated catch block
+          //            e.printStackTrace();
+          //          }
           if (value.isNotNull()) {
 
             Object valueObject = value.getValue().getClass();
@@ -1931,7 +1932,11 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
             } else if (valueObject instanceof Boolean) {
               pType = getBasicType(mdb, Type.BOOLEAN);
+            } else {
+              pType = getBasicType(mdb, Type.STRING);
             }
+          } else {
+            pType = getBasicType(mdb, Type.STRING);
           }
 
         } catch (UaException e) {
