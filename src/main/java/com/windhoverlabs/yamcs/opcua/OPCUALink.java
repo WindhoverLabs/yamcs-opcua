@@ -40,11 +40,14 @@ import static org.yamcs.parameter.SystemParametersService.getPV;
 import static org.yamcs.xtce.NameDescription.qualifiedName;
 
 import com.google.gson.JsonObject;
+import java.io.BufferedWriter;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -112,10 +115,13 @@ import org.yamcs.StandardTupleDefinitions;
 import org.yamcs.ValidationException;
 import org.yamcs.YConfiguration;
 import org.yamcs.YamcsServer;
+import org.yamcs.http.NotFoundException;
+import org.yamcs.mdb.XtceAssembler;
 import org.yamcs.parameter.ParameterValue;
 import org.yamcs.parameter.SystemParametersProducer;
 import org.yamcs.parameter.SystemParametersService;
 import org.yamcs.protobuf.Event.EventSeverity;
+import org.yamcs.protobuf.Yamcs.NamedObjectId;
 import org.yamcs.protobuf.Yamcs.Value.Type;
 import org.yamcs.tctm.AbstractLink;
 import org.yamcs.tctm.Link;
@@ -135,6 +141,7 @@ import org.yamcs.xtce.Member;
 import org.yamcs.xtce.NameDescription;
 import org.yamcs.xtce.Parameter;
 import org.yamcs.xtce.ParameterType;
+import org.yamcs.xtce.SpaceSystem;
 import org.yamcs.xtce.StringParameterType;
 import org.yamcs.xtce.XtceDb;
 import org.yamcs.yarch.DataType;
@@ -175,6 +182,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
   enum OPCUAStatus {
     OPCUA_INIT_CONFIG,
     OPCUA_INIT_TREE,
+    OPCUA_INIT_GENERATE_XTCE,
     OPCUA_INIT_EVENTS,
     OPCUA_INIT_DATA_SUBSCRIPTION,
     OPCUA_INIT_ALL_DATA_QUERY,
@@ -270,6 +278,8 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
   private OPCUAStatus currentOPCUAStatus;
 
+  private String outputFile;
+
   LinkAction startAction =
       new LinkAction("query_all", "Query All OPCUA Server Data") {
         @Override
@@ -302,6 +312,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     spec.addOption("opcuaStream", OptionType.STRING).withRequired(true);
     spec.addOption("endpointUrl", OptionType.STRING).withRequired(true);
     spec.addOption("discoveryUrl", OptionType.STRING).withRequired(true);
+    spec.addOption("xtceOutputFile", OptionType.STRING).withRequired(true);
     spec.addOption("parametersNamespace", OptionType.STRING).withRequired(true);
     spec.addOption("queryAllNodesAtStartup", OptionType.BOOLEAN).withRequired(false);
 
@@ -372,6 +383,41 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     }
 
     mdb = YamcsServer.getServer().getInstance(yamcsInstance).getXtceDb();
+
+    outputFile = config.getString("xtceOutputFile");
+  }
+
+  private static SpaceSystem verifySpaceSystem(XtceDb mdb, String pathName) {
+    String namespace;
+    String name;
+    int lastSlash = pathName.lastIndexOf('/');
+    if ("/".equals(pathName)) {
+      namespace = "";
+      name = "";
+    } else if (lastSlash == -1 || lastSlash == pathName.length() - 1) {
+      namespace = "";
+      name = pathName;
+    } else {
+      namespace = pathName.substring(0, lastSlash);
+      name = pathName.substring(lastSlash + 1);
+    }
+
+    // First try with a prefixed slash (should be the common case)
+    NamedObjectId id =
+        NamedObjectId.newBuilder().setNamespace("/" + namespace).setName(name).build();
+    SpaceSystem spaceSystem = mdb.getSpaceSystem(id);
+    if (spaceSystem != null) {
+      return spaceSystem;
+    }
+
+    // Maybe some non-xtce namespace like MDB:OPS Name
+    id = NamedObjectId.newBuilder().setNamespace(namespace).setName(name).build();
+    spaceSystem = mdb.getSpaceSystem(id);
+    if (spaceSystem != null) {
+      return spaceSystem;
+    }
+
+    throw new NotFoundException("No such space system");
   }
 
   private void opcuaInit() {
@@ -392,6 +438,27 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
       currentOPCUAStatus = OPCUAStatus.OPCUA_INIT_TREE;
 
       browseOPCUATree(client, future);
+
+      currentOPCUAStatus = OPCUAStatus.OPCUA_INIT_GENERATE_XTCE;
+
+      var spaceSystem = verifySpaceSystem(mdb, "/");
+
+      var xtce = new XtceAssembler().toXtce(mdb, spaceSystem.getQualifiedName(), fqn -> true);
+
+      BufferedWriter writer = null;
+
+      if (outputFile != null) {
+        writer =
+            Files.newBufferedWriter(
+                Paths.get(outputFile),
+                StandardOpenOption.CREATE,
+                StandardOpenOption.TRUNCATE_EXISTING);
+      } else writer = null;
+
+      writer.write(xtce);
+
+      writer.flush();
+      writer.close();
 
       currentOPCUAStatus = OPCUAStatus.OPCUA_INIT_EVENTS;
       subscribeToEvents(client);
@@ -1680,7 +1747,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
   private void createDataChangeListener() {
     try {
-      opcuaSubscription = ManagedSubscription.create(client, 1);
+      opcuaSubscription = ManagedSubscription.create(client, 100);
     } catch (UaException e) {
       // TODO Auto-generated catch block
       e.printStackTrace();
@@ -1702,7 +1769,14 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
             TupleDefinition tdef = gftdef.copy();
             List<Object> cols = new ArrayList<>(4 + 1);
-            long gentime = timeService.getMissionTime();
+            //            FIXME: Add leap seconds.... as config or get it from YAMCS API.
+            long gentime =
+                values
+                    .get(i)
+                    .getSourceTime()
+                    .getJavaInstant()
+                    .plus(37, ChronoUnit.SECONDS)
+                    .toEpochMilli();
             cols.add(gentime);
             cols.add(parametersNamespace);
             cols.add(0);
@@ -1760,7 +1834,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
               cols.add(
                   getPV(
                       nodeIDToParamsMap.get(nodeAttrKey),
-                      Instant.now().toEpochMilli(),
+                      gentime,
                       values.get(i).getValue().toString()));
 
               pushTuple(tdef, cols);
