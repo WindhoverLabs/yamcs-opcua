@@ -73,7 +73,6 @@ import org.eclipse.milo.opcua.stack.client.DiscoveryClient;
 import org.eclipse.milo.opcua.stack.core.AttributeId;
 import org.eclipse.milo.opcua.stack.core.Identifiers;
 import org.eclipse.milo.opcua.stack.core.UaException;
-import org.eclipse.milo.opcua.stack.core.security.DefaultTrustListManager;
 import org.eclipse.milo.opcua.stack.core.types.builtin.ByteString;
 import org.eclipse.milo.opcua.stack.core.types.builtin.DataValue;
 import org.eclipse.milo.opcua.stack.core.types.builtin.DateTime;
@@ -125,7 +124,6 @@ import org.yamcs.protobuf.Yamcs.NamedObjectId;
 import org.yamcs.protobuf.Yamcs.Value.Type;
 import org.yamcs.tctm.AbstractLink;
 import org.yamcs.tctm.Link;
-import org.yamcs.tctm.Link.Status;
 import org.yamcs.tctm.LinkAction;
 import org.yamcs.tctm.PacketInputStream;
 import org.yamcs.tctm.ParameterSink;
@@ -192,8 +190,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
   /* Configuration Defaults */
   static final String STREAM_NAME = "opcua_params";
 
-  private Parameter OPCUAServerStatus;
-
   /* Configuration Parameters */
   protected long initialDelay;
   protected long period;
@@ -210,14 +206,10 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
   static final String DATA_EVENT_CNAME = "data";
 
-  Integer appNameMax;
-  Integer eventMsgMax;
-
   //  FIXME:Make the namespace configurable
 
   // /yamcs/<server_id>
   private String parametersNamespace;
-  private String serverId;
   XtceDb mdb;
 
   Stream opcuaStream;
@@ -225,7 +217,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
   ParameterSink paraSink;
   private static TupleDefinition gftdef = StandardTupleDefinitions.PARAMETER.copy();
 
-  private DefaultTrustListManager trustListManager;
   private AggregateParameterType opcuaAttrsType;
   private AggregateParameterType opcuaNodeIdNumericType;
   private AggregateParameterType opcuaNodeIdStringType;
@@ -239,22 +230,14 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
   private IdType rootIdentifierType; // Relative to the rootNamespaceIndex
 
-  private int relativePathNamespaceIndex;
-
-  private String relativePathIdentifier; // Relative to the rootNamespaceIndex
-
-  private IdType relativePathIdentifierType; // Relative to the rootNamespaceIndex
-
-  private String relativeNodePath;
-
-  //  NOTE:ALWAYS re-use params as org.yamcs.parameter.ParameterRequestManager.param2RequestMap
-  //  uses the object inside a map that was added to the mdb for the very fist time.
-  //  If when publishing the PV, we create a new VariableParam object clients will NOT
-  //  receive real-time updates as the new object VariableParam inside the new PV won't match the
-  // one
-  //  inside org.yamcs.parameter.ParameterRequestManager.param2RequestMap since the object hashes
-  //  do not match (since VariableParam does not override its hash function).
-
+  /**
+   * @note ALWAYS re-use params as org.yamcs.parameter.ParameterRequestManager.param2RequestMap uses
+   *     the object inside a map that was added to the mdb for the very fist time. If when
+   *     publishing the PV, we create a new VariableParam object clients will NOT receive real-time
+   *     updates as the new object VariableParam inside the new PV won't match the one inside
+   *     org.yamcs.parameter.ParameterRequestManager.param2RequestMap since the object hashes do not
+   *     match (since VariableParam does not override its hash function).
+   */
   private ConcurrentHashMap<NodeIDAttrPair, VariableParam> nodeIDToParamsMap =
       new ConcurrentHashMap<NodeIDAttrPair, VariableParam>();
 
@@ -1313,7 +1296,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     LoggerFactory.getLogger(getClass()).info("security dir: {}", securityTempDir.toAbsolutePath());
     LoggerFactory.getLogger(getClass()).info("security pki dir: {}", pkiDir.getAbsolutePath());
 
-    trustListManager = new DefaultTrustListManager(pkiDir);
+    //    trustListManager = new DefaultTrustListManager(pkiDir);
     List<EndpointDescription> endpoints = DiscoveryClient.getEndpoints(discoverURL).get();
 
     //    FIXME:At the moment, we do not support certificates...
@@ -1342,15 +1325,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
       }
     }
 
-    //    CertificateFactory fact = CertificateFactory.getInstance("X.509");
-    //    X509Certificate cer =
-    //        (X509Certificate)
-    //            fact.generateCertificate(
-    //                new ByteArrayInputStream(endpoints.get(2).getServerCertificate().bytes()));
-    //    KeyStoreLoader loader = new KeyStoreLoader().loadFromCert(securityTempDir, cer);
-    //
-    //    trustListManager.addTrustedCertificate(loader.getClientCertificate());
-
     if (selectedEndpoint == null) {
       throw new Exception("No viable endpoint found from list:" + endpoints);
     }
@@ -1378,8 +1352,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
       if (references.isEmpty()) {
         //    	  FIXME:Add log here
-        //        System.out.println("Empty list, return:" + references);
-        //        System.out.println("node with empty list:" + browseRoot.getType());
 
         return;
       }
@@ -1441,16 +1413,10 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
     } else {
 
-      //        FIXME:Remember to re-use these params (Do NOT create new objects when pushing
-      // PVs
-      // out to streams)
-
       /**
        * NOTE:For now we'll just flatten all the attributes instead of using an aggregate type for
        * attributes
        */
-      //          p.setParameterType(opcuaAttrsType);
-
       for (AttributeId attr : AttributeId.values()) {
 
         ParameterType ptype = OPCUAAttrTypeToParamType(attr, node);
@@ -1472,17 +1438,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
   }
 
   private String translateNodeToParamQName(OpcUaClient client, UaNode node, AttributeId attr) {
-
-    //    UaNode node = null;
-    //    try {
-    //      node =
-    //          client
-    //              .getAddressSpace()
-    //              .getNode(rd.getNodeId().toNodeId(client.getNamespaceTable()).get());
-    //    } catch (UaException e) {
-    //      // TODO Auto-generated catch block
-    //      e.printStackTrace();
-    //    }
     LocalizedText localizedDisplayName = null;
     try {
 
@@ -1625,25 +1580,10 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
                   result.getTargets()[0].getTargetId().toNodeId(client.getNamespaceTable()).get());
 
       addOPCUAPV(client, node);
-
-      for (AttributeId attr : AttributeId.VARIABLE_ATTRIBUTES) {
-        String value = "";
-        if (node.readAttribute(attr).getValue().isNull()) {
-          value = "NULL";
-        } else {
-          value = node.readAttribute(attr).getValue().getValue().toString();
-        }
-
-        //                log.debug("Pushing {} to stream", p.toString());
-
-      }
     } catch (UaException e) {
       // TODO Auto-generated catch block
       e.printStackTrace();
     }
-
-    //    l(result.getTargets())
-    //        .forEach(target -> System.out.println("TargetId={}" + target.getTargetId()));
   }
 
   private void createOPCUASubscriptions() {
@@ -1671,29 +1611,12 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
       if (nodeClass != null) {
         try {
           switch (NodeClass.from((int) nodeClass.getValue())) {
-              //          case DataType:
-              //            break;
-              //          case Method:
-              //            break;
-              //          case Object:
-              //            break;
-              //          case ObjectType:
-              //            break;
-              //          case ReferenceType:
-              //            break;
-              //          case Unspecified:
-              //            break;
+              // As per the spec, the only thing we can subscribe to is Variables
             case Variable:
               ManagedDataItem dataItem = opcuaSubscription.createDataItem(id);
               OPCUAActiveSubs.addAndGet(1);
               log.debug("Status code for dataItem:{}", dataItem.getStatusCode());
               break;
-              //          case VariableType:
-              //            break;
-              //          case View:
-              //            break;
-              //          default:
-              //            break;
           }
         } catch (UaException e) {
           // TODO Auto-generated catch block
@@ -1704,7 +1627,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
   }
 
   public void connectToOPCUAServer(OpcUaClient client) throws Exception {
-    // synchronous connect
     internalLogger.info("Connecting to OPCUA server...");
     client.connect().get();
 
