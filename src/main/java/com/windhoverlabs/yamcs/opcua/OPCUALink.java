@@ -280,6 +280,8 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
   private String outputFile;
 
+  private int publishInterval; // milliseconds
+
   LinkAction startAction =
       new LinkAction("query_all", "Query All OPCUA Server Data") {
         @Override
@@ -314,6 +316,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     spec.addOption("discoveryUrl", OptionType.STRING).withRequired(true);
     spec.addOption("xtceOutputFile", OptionType.STRING).withRequired(true);
     spec.addOption("parametersNamespace", OptionType.STRING).withRequired(true);
+    spec.addOption("publishInterval", OptionType.INTEGER).withRequired(true);
     spec.addOption("queryAllNodesAtStartup", OptionType.BOOLEAN).withRequired(false);
 
     Spec rootNodeIDSpec = new Spec();
@@ -385,6 +388,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     mdb = YamcsServer.getServer().getInstance(yamcsInstance).getXtceDb();
 
     outputFile = config.getString("xtceOutputFile");
+    publishInterval = config.getInt("publishInterval");
   }
 
   private static SpaceSystem verifySpaceSystem(XtceDb mdb, String pathName) {
@@ -1747,7 +1751,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
   private void createDataChangeListener() {
     try {
-      opcuaSubscription = ManagedSubscription.create(client, 100);
+      opcuaSubscription = ManagedSubscription.create(client, publishInterval);
     } catch (UaException e) {
       // TODO Auto-generated catch block
       e.printStackTrace();
