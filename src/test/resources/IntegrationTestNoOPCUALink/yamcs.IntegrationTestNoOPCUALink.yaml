@@ -59,6 +59,19 @@ dataLinks:
       # ns=2;s=HelloWorld/MyObject/2:Bar
       identifier: "84"  #84 is Root
 
+  #FIXME: Make browsing the root node by reference optional.
+    rootNodeID: #Link starts browsing at this node
+      namespaceIndex: 0
+      # identifier: "s=ac:DARAC/JSC/EA/EC/EC4/B32/ChA_PXIe_06/Channel/001/DE"
+      # "ns=2;s=HelloWorld/MyObject"
+      identifierType: Numeric
+      # identifier: "HelloWorld"  #84 is Root
+      # 0:Root,0:Objects,2:HelloWorld,2:MyObject,2:Bar
+      # 0:Root,0:Objects,2:HelloWorld,2:ArrayTypes
+      # ns=2;s=HelloWorld/MyObject
+      # ns=2;s=HelloWorld/MyObject/2:Bar
+      identifier: "84"  #84 is Root
+
 #  - name: tm_ocpua
 #    class: com.windhoverlabs.yamcs.opcua.OPCUALink
 #    # stream: tm_realtime

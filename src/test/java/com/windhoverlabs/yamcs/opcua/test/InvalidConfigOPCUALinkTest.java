@@ -12,6 +12,7 @@ import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
+import org.yamcs.ValidationException;
 import org.yamcs.client.processor.ProcessorClient;
 import org.yamcs.protobuf.Pvalue.AcquisitionStatus;
 import org.yamcs.protobuf.Pvalue.ParameterValue;
@@ -71,10 +72,8 @@ public class InvalidConfigOPCUALinkTest extends AbstractInvalidConfigOPCUAIntegr
   @Order(1)
   public void testOPCUALink() throws Exception {
     //    super.before();
-    com.google.common.util.concurrent.UncheckedExecutionException exception =
-        assertThrows(
-            com.google.common.util.concurrent.UncheckedExecutionException.class,
-            () -> super.before());
+    ValidationException exception =
+        assertThrows(org.yamcs.ValidationException.class, () -> super.before());
 
     //    assertEquals("Missing required argument endpoint_url", exception.getMessage());
   }

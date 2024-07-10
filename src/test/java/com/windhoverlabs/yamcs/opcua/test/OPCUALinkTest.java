@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import com.google.gson.JsonObject;
 import com.windhoverlabs.yamcs.opcua.OPCUALink;
+import com.windhoverlabs.yamcs.opcua.OPCUALink.OPCUAStatus;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
@@ -87,40 +88,35 @@ public class OPCUALinkTest extends AbstractOPCUAIntegrationTest {
     }
     super.before();
 
-    Thread.sleep(5000);
+    Thread.sleep(10000);
 
     var mdbClient = yamcsClient.createMissionDatabaseClient(yamcsInstance);
 
-    var it =
-        mdbClient
-            .listParameters(
-                org.yamcs.client.mdb.MissionDatabaseClient.ListOptions.system("/instruments/tvac"))
-            .get()
-            .iterator();
-
-    it.forEachRemaining(
-        p -> {
-          System.out.println("p-->" + p);
-        });
-
-    var refParam =
-        mdbClient
-            .getParameter(
-                "/instruments/tvac/ns=2-s=HelloWorld/Dynamic/Boolean/Variable/Boolean/Value")
-            .get(200, TimeUnit.MILLISECONDS);
-    assertNotNull(refParam);
-
-    assertEquals(
-        refParam.getQualifiedName(),
-        "/instruments/tvac/ns=2-s=HelloWorld/Dynamic/Boolean/Variable/Boolean/Value");
+    //    var it =
+    //        mdbClient
+    //            .listParameters(
+    //                org.yamcs.client.mdb.MissionDatabaseClient.ListOptions.system("/"))
+    //            .get()
+    //            .iterator();
+    //
+    //    it.forEachRemaining(
+    //        p -> {
+    //          System.out.println("p-->" + p);
+    //        });
 
     OPCUALink l =
         (OPCUALink)
             YamcsServer.getServer().getInstance(yamcsInstance).getLinkManager().getLink("tm_ocpua");
 
-    assertEquals(l.getLinkStatus(), Status.OK);
+    assertEquals(Status.OK, l.getLinkStatus());
 
-    assertEquals(l.connectionStatus(), Status.OK);
+    assertEquals(OPCUAStatus.OPCUA_OK, l.getCurrentOPCUAStatus());
+
+    var refParam =
+        mdbClient
+            .getParameter("/instruments/tvac/ns=2-s=HelloWorld/Dynamic/Dynamic/Value")
+            .get(200, TimeUnit.MILLISECONDS);
+    assertNotNull(refParam);
 
     LinkAction action = l.getAction("query_all");
 

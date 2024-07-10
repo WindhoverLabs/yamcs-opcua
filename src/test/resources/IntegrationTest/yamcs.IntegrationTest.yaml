@@ -12,6 +12,7 @@ services:
       type: "realtime"
   - class: org.yamcs.archive.CommandHistoryRecorder
   - class: org.yamcs.timeline.TimelineService
+  - class: org.yamcs.parameter.SystemParametersCollector
 
 dataLinks:
   - name: tm_realtime
@@ -35,21 +36,69 @@ dataLinks:
  
   - name: tm_ocpua
     class: com.windhoverlabs.yamcs.opcua.OPCUALink
+    # stream: tm_realtime
     opcuaStream: "opcua_params"
+    xtceOutputFile: opcua_xtce.xml
+    # endpoint_url: "opc.tcp://localhost:4840/"
     endpointUrl: "opc.tcp://localhost:12686/milo"
-    discoveryUrl: "opc.tcp://pop-os:12686/milo/"
+    discoveryUrl: "opc.tcp://localhost:12686/milo/discovery"
     parametersNamespace: "/instruments/tvac"
-  
     queryAllNodesAtStartup: true # defaults to false
+    publishInterval: 100
     
     # i 	Numeric (UInteger)
     # s 	String (String)
     # g 	Guid (Guid)
     # b 	Opaque (ByteString)
 
+    nodePaths:
+      - path: "2:HelloWorld,2:MyObject,2:Bar"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          # identifier: "s=ac:DARAC/JSC/EA/EC/EC4/B32/ChA_PXIe_06/Channel/001/DE"
+          # "ns=2;s=HelloWorld/MyObject"
+          identifierType: Numeric
+          # identifier: "HelloWorld"  #84 is Root
+          # 0:Root,0:Objects,2:HelloWorld,2:MyObject,2:Bar
+          # 0:Root,0:Objects,2:HelloWorld,2:ArrayTypes
+          # ns=2;s=HelloWorld/MyObject
+          # ns=2;s=HelloWorld/MyObject/2:Bar
+          # 0:Root,0:Objects,2:HelloWorld,2:MyObject,2:Foo
+          identifier: "85"  #84 is Root
 
+      - path: "2:HelloWorld,2:MyObject,2:Foo"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          # identifier: "s=ac:DARAC/JSC/EA/EC/EC4/B32/ChA_PXIe_06/Channel/001/DE"
+          # "ns=2;s=HelloWorld/MyObject"
+          identifierType: Numeric
+          # identifier: "HelloWorld"  #84 is Root
+          # 0:Root,0:Objects,2:HelloWorld,2:MyObject,2:Bar
+          # 0:Root,0:Objects,2:HelloWorld,2:ArrayTypes
+          # ns=2;s=HelloWorld/MyObject
+          # ns=2;s=HelloWorld/MyObject/2:Bar
+          # 0:Root,0:Objects,2:HelloWorld,2:MyObject,2:Foo
+          identifier: "85"  #84 is Root
+
+
+      # - path: "2:HelloWorld,2:WriteOnly"
+      #   rootNodeID: #Link starts browsing at this node
+      #     namespaceIndex: 0
+      #     # identifier: "s=ac:DARAC/JSC/EA/EC/EC4/B32/ChA_PXIe_06/Channel/001/DE"
+      #     # "ns=2;s=HelloWorld/MyObject"
+      #     identifierType: Numeric
+      #     # identifier: "HelloWorld"  #84 is Root
+      #     # 0:Root,0:Objects,2:HelloWorld,2:MyObject,2:Bar
+      #     # 0:Root,0:Objects,2:HelloWorld,2:ArrayTypes
+      #     # ns=2;s=HelloWorld/MyObject
+      #     # ns=2;s=HelloWorld/MyObject/2:Bar
+      #     # 0:Root,0:Objects,2:HelloWorld,2:MyObject,2:Foo
+      #     identifier: "85"  #84 is Root
+
+  #FIXME: Make browsing the root node by reference optional.
     rootNodeID: #Link starts browsing at this node
       namespaceIndex: 0
+      # identifier: "s=ac:DARAC/JSC/EA/EC/EC4/B32/ChA_PXIe_06/Channel/001/DE"
       # "ns=2;s=HelloWorld/MyObject"
       identifierType: Numeric
       # identifier: "HelloWorld"  #84 is Root
@@ -87,12 +136,12 @@ mdb:
     # Configuration of the active loaders
     # Valid loaders are: sheet, xtce or fully qualified name of the class
 
-    - type: "sheet"
-      args: 
-       file: "mdb/refmdb.xls"
-       enableAliasReferences: false
-#    - type: "xtce"
-#      spec: "mdb/cfs-ccsds.xml"
+#    - type: "sheet"
+#      args: 
+#       file: "mdb/refmdb.xls"
+#       enableAliasReferences: false
+    - type: "xtce"
+      spec: "mdb/cfs-ccsds.xml"
 #      subLoaders:
 #      - type: "xtce"
 #        spec: "mdb/PPD.xml"

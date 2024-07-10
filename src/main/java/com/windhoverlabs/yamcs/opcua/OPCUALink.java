@@ -179,7 +179,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     HashMap<Object, Object> rootNodeID = new HashMap<Object, Object>();
   }
 
-  enum OPCUAStatus {
+  public enum OPCUAStatus {
     OPCUA_INIT_CONFIG,
     OPCUA_INIT_TREE,
     OPCUA_INIT_GENERATE_XTCE,
@@ -278,9 +278,12 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
   private OPCUAStatus currentOPCUAStatus;
 
+  public OPCUAStatus getCurrentOPCUAStatus() {
+    return currentOPCUAStatus;
+  }
+
   private Parameter OPCUAActiveSubsParam;
   private AtomicLong OPCUAActiveSubs = new AtomicLong(0);
-  ;
 
   private String outputFile;
 
@@ -1505,49 +1508,50 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
    * @param attr
    * @return
    */
-  private String translateNodeDisplayNameToParamQName(
-      OpcUaClient client, ReferenceDescription rd, AttributeId attr) {
-    String opcuaTranslatedQName =
-        qualifiedName(
-            parametersNamespace
-                + NameDescription.PATH_SEPARATOR
-                + rd.getNodeId()
-                    .toNodeId(client.getNamespaceTable())
-                    .get()
-                    .toParseableString()
-                    .replace(";", "-"),
-            attr.toString());
-
-    UaNode node = null;
-    try {
-      node =
-          client
-              .getAddressSpace()
-              .getNode(rd.getNodeId().toNodeId(client.getNamespaceTable()).get());
-    } catch (UaException e) {
-      // TODO Auto-generated catch block
-      e.printStackTrace();
-    }
-
-    String displayName = null;
-    LocalizedText localizedDisplayName = null;
-    try {
-      displayName = node.readAttribute(AttributeId.DisplayName).getValue().getValue().toString();
-
-      localizedDisplayName =
-          (LocalizedText) (node.readAttribute(AttributeId.DisplayName).getValue().getValue());
-    } catch (UaException e) {
-      // TODO Auto-generated catch block
-      e.printStackTrace();
-    }
-
-    //	    String opcuaTranslatedQName =
-    //	        qualifiedName(
-    //	            parametersNamespace + NameDescription.PATH_SEPARATOR +
-    // localizedDisplayName.getText(),
-    //	            attr.toString());
-    return opcuaTranslatedQName;
-  }
+  //  private String translateNodeDisplayNameToParamQName(
+  //      OpcUaClient client, ReferenceDescription rd, AttributeId attr) {
+  //    String opcuaTranslatedQName =
+  //        qualifiedName(
+  //            parametersNamespace
+  //                + NameDescription.PATH_SEPARATOR
+  //                + rd.getNodeId()
+  //                    .toNodeId(client.getNamespaceTable())
+  //                    .get()
+  //                    .toParseableString()
+  //                    .replace(";", "-"),
+  //            attr.toString());
+  //
+  //    UaNode node = null;
+  //    try {
+  //      node =
+  //          client
+  //              .getAddressSpace()
+  //              .getNode(rd.getNodeId().toNodeId(client.getNamespaceTable()).get());
+  //    } catch (UaException e) {
+  //      // TODO Auto-generated catch block
+  //      e.printStackTrace();
+  //    }
+  //
+  //    String displayName = null;
+  //    LocalizedText localizedDisplayName = null;
+  //    try {
+  //      displayName =
+  // node.readAttribute(AttributeId.DisplayName).getValue().getValue().toString();
+  //
+  //      localizedDisplayName =
+  //          (LocalizedText) (node.readAttribute(AttributeId.DisplayName).getValue().getValue());
+  //    } catch (UaException e) {
+  //      // TODO Auto-generated catch block
+  //      e.printStackTrace();
+  //    }
+  //
+  //    //	    String opcuaTranslatedQName =
+  //    //	        qualifiedName(
+  //    //	            parametersNamespace + NameDescription.PATH_SEPARATOR +
+  //    // localizedDisplayName.getText(),
+  //    //	            attr.toString());
+  //    return opcuaTranslatedQName;
+  //  }
 
   /**
    * @param indent
