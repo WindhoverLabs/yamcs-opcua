@@ -125,8 +125,6 @@ import org.yamcs.protobuf.Yamcs.Value.Type;
 import org.yamcs.tctm.AbstractLink;
 import org.yamcs.tctm.Link;
 import org.yamcs.tctm.LinkAction;
-import org.yamcs.tctm.PacketInputStream;
-import org.yamcs.tctm.ParameterSink;
 import org.yamcs.utils.ValueUtility;
 import org.yamcs.xtce.AbsoluteTimeParameterType;
 import org.yamcs.xtce.AggregateParameterType;
@@ -143,7 +141,6 @@ import org.yamcs.xtce.SpaceSystem;
 import org.yamcs.xtce.StringParameterType;
 import org.yamcs.xtce.XtceDb;
 import org.yamcs.yarch.DataType;
-import org.yamcs.yarch.FileSystemBucket;
 import org.yamcs.yarch.Stream;
 import org.yamcs.yarch.Tuple;
 import org.yamcs.yarch.TupleDefinition;
@@ -190,23 +187,10 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
   /* Configuration Defaults */
   static final String STREAM_NAME = "opcua_params";
 
-  /* Configuration Parameters */
-  protected long initialDelay;
-  protected long period;
-  boolean ignoreSpacecraftID;
-  boolean ignoreProcessorID;
-
   /* Internal member attributes. */
-  protected FileSystemBucket csvBucket;
-  protected YConfiguration packetInputStreamArgs;
-  protected PacketInputStream packetInputStream;
   protected Thread thread;
 
   private String opcuaStreamName;
-
-  static final String DATA_EVENT_CNAME = "data";
-
-  //  FIXME:Make the namespace configurable
 
   // /yamcs/<server_id>
   private String parametersNamespace;
@@ -214,7 +198,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
   Stream opcuaStream;
 
-  ParameterSink paraSink;
   private static TupleDefinition gftdef = StandardTupleDefinitions.PARAMETER.copy();
 
   private AggregateParameterType opcuaAttrsType;
@@ -245,32 +228,26 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
   protected AtomicLong inCount = new AtomicLong(0);
 
-  private String endpointURL;
-
   private Status linkStatus = Status.OK;
 
-  private String discoverURL;
+  /* Configuration Parameters */
 
+  private String discoverURL;
+  private String endpointURL;
   private boolean queryAllNodesAtStartup;
+  private String outputFile;
+  private int publishInterval; // milliseconds
 
   private ArrayList<NodePath> relativeNodePaths = new ArrayList<NodePath>();
 
   private final AtomicLong clientHandles = new AtomicLong(1L);
 
+  /* System parameters*/
+
   private Parameter OPCUAStatusParam;
-
   private OPCUAStatus currentOPCUAStatus;
-
-  public OPCUAStatus getCurrentOPCUAStatus() {
-    return currentOPCUAStatus;
-  }
-
   private Parameter OPCUAActiveSubsParam;
   private AtomicLong OPCUAActiveSubs = new AtomicLong(0);
-
-  private String outputFile;
-
-  private int publishInterval; // milliseconds
 
   LinkAction startAction =
       new LinkAction("query_all", "Query All OPCUA Server Data") {
@@ -293,6 +270,10 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
           return jsonObject;
         }
       };
+
+  public OPCUAStatus getCurrentOPCUAStatus() {
+    return currentOPCUAStatus;
+  }
 
   @Override
   public Spec getSpec() {
@@ -344,6 +325,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
       config = getSpec().validate(config);
     } catch (ValidationException e) {
       log.error("Failed configuration validation.", e);
+      notifyFailed(e);
     }
     YarchDatabaseInstance ydb = YarchDatabase.getInstance(yamcsInstance);
 
@@ -469,7 +451,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
   private void opcuaClientConnect() throws Exception {
     client = configureClient();
-
     connectToOPCUAServer(client);
   }
 
@@ -547,8 +528,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
   @Override
   protected void doStop() {
-
-    //    FIXME
     try {
       client.disconnect().get();
     } catch (InterruptedException | ExecutionException e) {
@@ -564,7 +543,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
   @Override
   public void run() {
-
     opcuaInit();
     if (queryAllNodesAtStartup) {
       //    	NOTE:I'm not sure if queryAllOPCUAData should block...
@@ -573,8 +551,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     }
     /* Enter our main loop */
     while (isRunningAndEnabled()) {
-      /* Iterate through all our watch keys. */
-
       currentOPCUAStatus = OPCUAStatus.OPCUA_OK;
     }
   }
@@ -1089,24 +1065,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
               columnCount++;
             }
             break;
-            //          case VariableType:
-            //            //                tdef.addColumn(pair.getValue().getQualifiedName(),
-            //            // DataType.PARAMETER_VALUE);
-            //            //                cols.add(getPV(pair.getValue(),
-            // Instant.now().toEpochMilli(),
-            //            // "PlaceHolder"));
-            //            //            columnCount++;
-            ////            break;
-            //          case View:
-            //            //                tdef.addColumn(pair.getValue().getQualifiedName(),
-            //            // DataType.PARAMETER_VALUE);
-            //            //                cols.add(getPV(pair.getValue(),
-            // Instant.now().toEpochMilli(),
-            //            // "PlaceHolder"));
-            //            //            columnCount++;
-            ////            break;
-            //          default:
-            //            break;
           case VariableType:
             break;
           case View:
@@ -1134,7 +1092,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
   private synchronized void pushTuple(TupleDefinition tdef, List<Object> cols) {
     Tuple t;
     t = new Tuple(tdef, cols);
-
     opcuaStream.emitTuple(t);
   }
 
@@ -1426,7 +1383,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
         p.setParameterType(ptype);
 
-        //        TODO:Add Map of node_id -> Params
         if (mdb.getParameter(p.getQualifiedName()) == null) {
           log.debug("Adding OPCUA object as parameter to mdb:{}", p.getQualifiedName());
           mdb.addParameter(p, true);
@@ -1912,17 +1868,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
           var value = node.readAttribute(attr).getValue();
           client.readValue(0, TimestampsToReturn.Both, node.getNodeId());
-          //          try {
-          //            System.out.println(
-          //                "value-->"
-          //                    + client.readValue(0, TimestampsToReturn.Both,
-          // node.getNodeId()).get()
-          //                    + "for node:"
-          //                    + node.getNodeId());
-          //          } catch (InterruptedException | ExecutionException e) {
-          //            // TODO Auto-generated catch block
-          //            e.printStackTrace();
-          //          }
           if (value.isNotNull()) {
 
             Object valueObject = value.getValue().getClass();
@@ -2052,10 +1997,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
           for (int i = 0; i < vs.length; i++) {
             internalLogger.info("\tvariant[{}]: {}", i, vs[i].getValue());
-
-            //            eventText.append("" + i + ":" + vs[i].getValue());
-            //            System.out.println("tvariant:" + vs[i].getValue());
-            //            System.out.println("tvariant class:" + vs[i].getValue().getClass());
           }
 
           eventId = (ByteString) vs[0].getValue();
@@ -2084,10 +2025,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
                   .setSeverity(EventSeverity.INFO)
                   .build();
           eventProducer.sendEvent(ev);
-
-          if (eventCount.incrementAndGet() == 3) {
-            //                future.complete(client);
-          }
         });
   }
 
