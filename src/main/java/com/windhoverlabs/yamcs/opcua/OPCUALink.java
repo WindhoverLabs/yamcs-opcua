@@ -278,6 +278,10 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
   private OPCUAStatus currentOPCUAStatus;
 
+  private Parameter OPCUAActiveSubsParam;
+  private AtomicLong OPCUAActiveSubs = new AtomicLong(0);
+  ;
+
   private String outputFile;
 
   private int publishInterval; // milliseconds
@@ -1673,6 +1677,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
               //            break;
             case Variable:
               ManagedDataItem dataItem = opcuaSubscription.createDataItem(id);
+              OPCUAActiveSubs.addAndGet(1);
               log.debug("Status code for dataItem:{}", dataItem.getStatusCode());
               break;
               //          case VariableType:
@@ -1842,6 +1847,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
                       values.get(i).getValue().toString()));
 
               pushTuple(tdef, cols);
+
               inCount.getAndAdd(1);
             } else {
               // TODO:Add some type emptyValue count for OPS.
@@ -2190,6 +2196,12 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
         .enumValue(OPCUAStatus.OPCUA_OK.name())
         .setDescription(
             "The link is done with all OPCUA initialization. It is in an usable state.");
+
+    OPCUAActiveSubsParam =
+        sysParamService.createSystemParameter(
+            linkName + "/OPCUAActiveSubs",
+            Type.UINT64,
+            "The total number of active opcua subscriptions");
   }
 
   @Override
@@ -2201,6 +2213,10 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     list.add(
         org.yamcs.parameter.SystemParametersService.getPV(
             OPCUAStatusParam, time, currentOPCUAStatus));
+
+    list.add(
+        org.yamcs.parameter.SystemParametersService.getPV(
+            OPCUAActiveSubsParam, time, OPCUAActiveSubs.get()));
     try {
       super.collectSystemParameters(time, list);
     } catch (Exception e) {
