@@ -440,11 +440,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
     final CompletableFuture<OpcUaClient> future = new CompletableFuture<>();
 
-    client = null;
     try {
-      client = configureClient();
-
-      connectToOPCUAServer(client, future);
 
       currentOPCUAStatus = OPCUAStatus.OPCUA_INIT_TREE;
 
@@ -486,6 +482,12 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
       // TODO Auto-generated catch block
       e.printStackTrace();
     }
+  }
+
+  private void opcuaClientConnect() throws Exception {
+    client = configureClient();
+
+    connectToOPCUAServer(client);
   }
 
   private static Stream getStream(YarchDatabaseInstance ydb, String streamName) {
@@ -533,13 +535,21 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
   @Override
   protected void doStart() {
+    try {
+      opcuaClientConnect();
+    } catch (Exception e) {
+      e.printStackTrace();
+      linkStatus = Status.FAILED;
+      notifyFailed(e);
+      return;
+    }
     if (!isDisabled()) {
       doEnable();
     }
     startAction.addChangeListener(
         () -> {
           /**
-           * TODO:Might be useful if we want turn off any functionality when are action is disabled
+           * TODO:Might be useful if we want turn off any functionality when the action is disabled
            * for instance..
            */
         });
@@ -1264,8 +1274,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
   @Override
   public Status getLinkStatus() {
-    // TODO Auto-generated method stub
-    return Status.OK;
+    return linkStatus;
   }
 
   @Override
@@ -1694,8 +1703,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     }
   }
 
-  public void connectToOPCUAServer(OpcUaClient client, CompletableFuture<OpcUaClient> future)
-      throws Exception {
+  public void connectToOPCUAServer(OpcUaClient client) throws Exception {
     // synchronous connect
     internalLogger.info("Connecting to OPCUA server...");
     client.connect().get();
