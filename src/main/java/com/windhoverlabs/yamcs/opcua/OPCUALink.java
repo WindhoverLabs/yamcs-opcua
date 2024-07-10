@@ -543,8 +543,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
            * for instance..
            */
         });
-    addAction(startAction);
-    startAction.setEnabled(true);
 
     /* Create and start the new thread. */
     thread = new Thread(this);
@@ -559,7 +557,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
     //    FIXME
     try {
-      client.getSession();
       client.disconnect().get();
     } catch (InterruptedException | ExecutionException e) {
       // TODO Auto-generated catch block
@@ -568,8 +565,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     if (thread != null) {
       thread.interrupt();
     }
-
-    //      Stack.releaseSharedResources();
 
     notifyStopped();
   }
@@ -1704,6 +1699,9 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     // synchronous connect
     internalLogger.info("Connecting to OPCUA server...");
     client.connect().get();
+
+    addAction(startAction);
+    startAction.setEnabled(true);
   }
 
   /**
