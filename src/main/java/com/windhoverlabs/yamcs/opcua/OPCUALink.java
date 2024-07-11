@@ -597,16 +597,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
               VariableParam p = nodeIDToParamsMap.get(new NodeIDAttrPair(nId, attr));
 
               if (p.getParameterType() == null) {
-
-                String value = "";
-                if (node.readAttribute(attr).getValue().isNull()) {
-                  value = "NULL";
-                } else {
-                  value = node.readAttribute(attr).getValue().getValue().toString();
-                }
-
-                tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
-                cols.add(getPV(p, Instant.now().toEpochMilli(), value));
+                // FIXME:Add log message
                 continue;
               }
 
@@ -1156,6 +1147,8 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     for (NodeIDAttrPair pair : nodeIDToParamsMap.keySet()) {
       nodeSet.add(pair.nodeID);
     }
+
+    ArrayList<NodeId> variableNodes = new ArrayList<NodeId>();
     for (NodeId id : nodeSet) {
       Variant nodeClass = null;
       try {
@@ -1168,20 +1161,27 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
         e.printStackTrace();
       }
       if (nodeClass != null) {
-        try {
-          switch (NodeClass.from((int) nodeClass.getValue())) {
-              // As per the spec, the only thing we can subscribe to is Variables
-            case Variable:
-              ManagedDataItem dataItem = opcuaSubscription.createDataItem(id);
-              OPCUAActiveSubs.addAndGet(1);
-              log.debug("Status code for dataItem:{}", dataItem.getStatusCode());
-              break;
-          }
-        } catch (UaException e) {
-          // TODO Auto-generated catch block
-          e.printStackTrace();
+        //        try {
+        switch (NodeClass.from((int) nodeClass.getValue())) {
+            // As per the spec, the only thing we can subscribe to is Variables
+          case Variable:
+            //              ManagedDataItem dataItem = opcuaSubscription.createDataItem(id);
+
+            variableNodes.add(id);
+            break;
         }
       }
+    }
+
+    try {
+      List<ManagedDataItem> dataItems = opcuaSubscription.createDataItems(variableNodes);
+      for (var dataItem : dataItems) {
+        log.debug("Status code for dataItem:{}", dataItem.getStatusCode());
+        OPCUAActiveSubs.addAndGet(1);
+      }
+    } catch (UaException e) {
+      // TODO Auto-generated catch block
+      e.printStackTrace();
     }
   }
 
