@@ -36,7 +36,6 @@ package com.windhoverlabs.yamcs.opcua;
 import static com.google.common.collect.Lists.newArrayList;
 import static org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.uint;
 import static org.eclipse.milo.opcua.stack.core.util.ConversionUtil.toList;
-import static org.yamcs.parameter.SystemParametersService.getPV;
 import static org.yamcs.xtce.NameDescription.qualifiedName;
 
 import com.google.gson.JsonObject;
@@ -179,6 +178,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     HashMap<Object, Object> rootNodeID = new HashMap<Object, Object>();
   }
 
+  /** Useful status for tracking initialization status of the link. */
   public enum OPCUAStatus {
     OPCUA_INIT_CONFIG,
     OPCUA_INIT_TREE,
@@ -197,7 +197,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
   private String opcuaStreamName;
 
-  // /yamcs/<server_id>
   private String parametersNamespace;
   XtceDb mdb;
 
@@ -406,8 +405,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
    * OPCUA terms).
    */
   private void opcuaInit() {
-    //  	FIXME:Might need to move this function to start(), maybe...
-
     createOPCUAAttrAggregateType();
     createOPCUANodeIdTypes();
     mdb.addParameterType(opcuaAttrsType, true);
@@ -598,227 +595,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
         DataValue nodeClass = node.readAttribute(AttributeId.NodeClass);
 
         switch (NodeClass.from((int) nodeClass.getValue().getValue())) {
-          case Object:
-            //                tdef.addColumn(pair.getValue().getQualifiedName(),
-            // DataType.PARAMETER_VALUE);
-            //                cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(),
-            // "PlaceHolder"));
-            //            columnCount++;
-            for (AttributeId attr : AttributeId.VARIABLE_ATTRIBUTES) {
-
-              VariableParam p = nodeIDToParamsMap.get(new NodeIDAttrPair(nId, attr));
-
-              if (p.getParameterType() == null) {
-                String value = "";
-                if (node.readAttribute(attr).getValue().isNull()) {
-                  value = "NULL";
-                } else {
-                  value = node.readAttribute(attr).getValue().getValue().toString();
-                }
-
-                tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
-                cols.add(getPV(p, Instant.now().toEpochMilli(), value));
-                continue;
-              }
-
-              switch (p.getParameterType().getValueType()) {
-                case AGGREGATE:
-                  {
-                    String value = "";
-                    if (node.readAttribute(attr).getValue().isNull()) {
-                      value = "NULL";
-                    } else {
-                      value = node.readAttribute(attr).getValue().getValue().toString();
-                    }
-
-                    tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
-                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
-                  }
-                  break;
-                case ARRAY:
-                  {
-                    String value = "";
-                    if (node.readAttribute(attr).getValue().isNull()) {
-                      value = "NULL";
-                    } else {
-                      value = node.readAttribute(attr).getValue().getValue().toString();
-                    }
-
-                    tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
-                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
-                  }
-                  break;
-                case BINARY:
-                  {
-                    String value = "";
-                    if (node.readAttribute(attr).getValue().isNull()) {
-                      value = "NULL";
-                    } else {
-                      value = node.readAttribute(attr).getValue().getValue().toString();
-                    }
-
-                    tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
-                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
-                  }
-                  break;
-                case BOOLEAN:
-                  {
-                    String value = "";
-                    if (node.readAttribute(attr).getValue().isNull()) {
-                      value = "NULL";
-                    } else {
-                      value = node.readAttribute(attr).getValue().getValue().toString();
-                    }
-
-                    tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
-                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
-                  }
-                  break;
-                case DOUBLE:
-                  {
-                    double value = 0;
-                    if (node.readAttribute(attr).getValue().isNull()) {
-                      //                      value = null;
-                      //                    	FIXME:Log warning
-                    } else {
-                      value = (double) node.readAttribute(attr).getValue().getValue();
-                    }
-
-                    tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
-                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
-                  }
-                  break;
-                case ENUMERATED:
-                  {
-                    String value = "";
-                    if (node.readAttribute(attr).getValue().isNull()) {
-                      value = "NULL";
-                    } else {
-                      value = node.readAttribute(attr).getValue().getValue().toString();
-                    }
-
-                    tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
-                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
-                  }
-                  break;
-                case FLOAT:
-                  {
-                    float value = 0;
-                    if (node.readAttribute(attr).getValue().isNull()) {
-                      //                      value = null;
-                      //                    	FIXME:Log warning
-                    } else {
-                      value = (float) node.readAttribute(attr).getValue().getValue();
-                    }
-
-                    tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
-                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
-                  }
-                  break;
-                case NONE:
-                  {
-                    String value = "";
-                    if (node.readAttribute(attr).getValue().isNull()) {
-                      value = "NULL";
-                    } else {
-                      value = node.readAttribute(attr).getValue().getValue().toString();
-                    }
-
-                    tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
-                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
-                  }
-                  break;
-                case SINT32:
-                  {
-                    int value = 0;
-                    if (node.readAttribute(attr).getValue().isNull()) {
-                      //                      value = null;
-                      //                    	FIXME:Log warning
-                    } else {
-                      value = (int) node.readAttribute(attr).getValue().getValue();
-                    }
-
-                    tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
-                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
-                  }
-                  break;
-                case SINT64:
-                  {
-                    long value = 0;
-                    if (node.readAttribute(attr).getValue().isNull()) {
-                      //                      value = null;
-                      //                    	FIXME:Log warning
-                    } else {
-                      value = (long) node.readAttribute(attr).getValue().getValue();
-                    }
-
-                    tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
-                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
-                  }
-                  break;
-                case STRING:
-                  {
-                    String value = "";
-                    if (node.readAttribute(attr).getValue().isNull()) {
-                      value = "NULL";
-                    } else {
-                      value = node.readAttribute(attr).getValue().getValue().toString();
-                    }
-
-                    tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
-                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
-                  }
-                  break;
-                case TIMESTAMP:
-                  {
-                    String value = "";
-                    if (node.readAttribute(attr).getValue().isNull()) {
-                      value = "NULL";
-                    } else {
-                      value = node.readAttribute(attr).getValue().getValue().toString();
-                    }
-
-                    tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
-                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
-                  }
-                  break;
-                case UINT32:
-                  {
-                    long value = 0;
-                    if (node.readAttribute(attr).getValue().isNull()) {
-                      //                      value = null;
-                      //                    	FIXME:Log warning
-                    } else {
-                      value = (long) node.readAttribute(attr).getValue().getValue();
-                    }
-
-                    tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
-                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
-                  }
-                  break;
-                case UINT64:
-                  {
-                    long value = 0;
-                    if (node.readAttribute(attr).getValue().isNull()) {
-                      //                      value = null;
-                      //                    	FIXME:Log warning
-                    } else {
-                      value = (long) node.readAttribute(attr).getValue().getValue();
-                    }
-
-                    tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
-                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
-                  }
-                  break;
-                default:
-                  break;
-              }
-
-              log.debug("Pushing {} to stream", p.toString());
-
-              columnCount++;
-            }
-            break;
           case Variable:
             for (AttributeId attr : AttributeId.VARIABLE_ATTRIBUTES) {
 
@@ -1036,10 +812,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
               columnCount++;
             }
             break;
-          case VariableType:
-            break;
-          case View:
-            break;
           default:
             break;
         }
@@ -1226,7 +998,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     LoggerFactory.getLogger(getClass()).info("security dir: {}", securityTempDir.toAbsolutePath());
     LoggerFactory.getLogger(getClass()).info("security pki dir: {}", pkiDir.getAbsolutePath());
 
-    //    trustListManager = new DefaultTrustListManager(pkiDir);
     List<EndpointDescription> endpoints = DiscoveryClient.getEndpoints(discoverURL).get();
 
     //    FIXME:At the moment, we do not support certificates...
@@ -1411,59 +1182,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
   }
 
   /**
-   * Same as translateNodeToParamQName but uses display name from the node instead of the
-   *
-   * @param client
-   * @param rd
-   * @param attr
-   * @return
-   */
-  //  private String translateNodeDisplayNameToParamQName(
-  //      OpcUaClient client, ReferenceDescription rd, AttributeId attr) {
-  //    String opcuaTranslatedQName =
-  //        qualifiedName(
-  //            parametersNamespace
-  //                + NameDescription.PATH_SEPARATOR
-  //                + rd.getNodeId()
-  //                    .toNodeId(client.getNamespaceTable())
-  //                    .get()
-  //                    .toParseableString()
-  //                    .replace(";", "-"),
-  //            attr.toString());
-  //
-  //    UaNode node = null;
-  //    try {
-  //      node =
-  //          client
-  //              .getAddressSpace()
-  //              .getNode(rd.getNodeId().toNodeId(client.getNamespaceTable()).get());
-  //    } catch (UaException e) {
-  //      // TODO Auto-generated catch block
-  //      e.printStackTrace();
-  //    }
-  //
-  //    String displayName = null;
-  //    LocalizedText localizedDisplayName = null;
-  //    try {
-  //      displayName =
-  // node.readAttribute(AttributeId.DisplayName).getValue().getValue().toString();
-  //
-  //      localizedDisplayName =
-  //          (LocalizedText) (node.readAttribute(AttributeId.DisplayName).getValue().getValue());
-  //    } catch (UaException e) {
-  //      // TODO Auto-generated catch block
-  //      e.printStackTrace();
-  //    }
-  //
-  //    //	    String opcuaTranslatedQName =
-  //    //	        qualifiedName(
-  //    //	            parametersNamespace + NameDescription.PATH_SEPARATOR +
-  //    // localizedDisplayName.getText(),
-  //    //	            attr.toString());
-  //    return opcuaTranslatedQName;
-  //  }
-
-  /**
    * Browse node at nodePath relative to browseRoot.
    *
    * @param indent
@@ -1612,8 +1330,8 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
   }
 
   /**
-   * Get new OPCUA-compliant NodeID object create from NamespaceIndex and Identifier. At the moment
-   * only String and Numeric node ids are supported.
+   * Get new OPCUA-compliant NodeID object that is created from NamespaceIndex and Identifier. At
+   * the moment only String and Numeric node ids are supported.
    *
    * @param rootIdentifierType
    * @param NamespaceIndex
@@ -1628,14 +1346,12 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
         break;
       case Numeric:
         nodeID = new NodeId(NamespaceIndex, Integer.parseInt(Identifier));
-        //        browseNodes(endpointURL, client, nodeID);
         break;
       case Opaque:
         //		FIXME
         break;
       case String:
         nodeID = new NodeId(NamespaceIndex, Identifier);
-        //        browseNodes(endpointURL, client, nodeID);
         break;
       default:
         break;
@@ -1713,9 +1429,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
             }
 
             if (values.get(i).getValue() != null && values.get(i).getValue().getValue() != null) {
-              //              tdef.addColumn(
-              //                  nodeIDToParamsMap.get(nodeAttrKey).getQualifiedName(),
-              // DataType.PARAMETER_VALUE);
 
               switch (nodeIDToParamsMap.get(nodeAttrKey).getParameterType().getValueType()) {
                 case AGGREGATE:
@@ -1859,12 +1572,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
                   break;
               }
 
-              //              cols.add(
-              //                  getPV(
-              //                      nodeIDToParamsMap.get(nodeAttrKey),
-              //                      gentime,
-              //                      values.get(i).getValue().getValue()));
-
               pushTuple(tdef, cols);
 
               inCount.getAndAdd(1);
@@ -1933,6 +1640,14 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     mdb.addParameterType(opcuaNodeIdStringType, true);
   }
 
+  /**
+   * Get new ParameterType for the specified attribute of the node. Particularly useful for Value
+   * attributes of nodes.
+   *
+   * @param attr
+   * @param node
+   * @return
+   */
   private ParameterType OPCUAAttrTypeToParamType(AttributeId attr, UaNode node) {
     ParameterType pType = null;
 
@@ -2155,7 +1870,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
   @Override
   public void setupSystemParameters(SystemParametersService sysParamService) {
     super.setupSystemParameters(sysParamService);
-    //	  currentOPCUAStatus;
     OPCUAStatusParam =
         sysParamService.createEnumeratedSystemParameter(
             linkName + "/OPCUAStatusParam",
