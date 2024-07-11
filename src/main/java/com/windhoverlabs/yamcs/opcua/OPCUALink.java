@@ -567,7 +567,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
    * querying data from the OPCUA server once, data such as browse names, NodeIds, etc.
    */
   private void queryAllOPCUAData() {
-
     TupleDefinition tdef = gftdef.copy();
     List<Object> cols = new ArrayList<>(4 + nodeIDToParamsMap.keySet().size());
 
@@ -635,8 +634,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
                 cols.add(getPV(p, Instant.now().toEpochMilli(), value));
                 continue;
               }
-
-              //                  System.out.println("Param value type:" + p.getParameterType());
 
               switch (p.getParameterType().getValueType()) {
                 case AGGREGATE:
@@ -875,8 +872,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
                 cols.add(getPV(p, Instant.now().toEpochMilli(), value));
                 continue;
               }
-
-              //              System.out.println("Param value type:" + p.getParameterType());
 
               switch (p.getParameterType().getValueType()) {
                 case AGGREGATE:
@@ -1162,6 +1157,14 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
         return getOrCreateType(mdb, "time", () -> new AbsoluteTimeParameterType.Builder());
       case ENUMERATED:
         return getOrCreateType(mdb, "enum", () -> new EnumeratedParameterType.Builder());
+      case AGGREGATE:
+        break;
+      case ARRAY:
+        break;
+      case NONE:
+        break;
+      default:
+        break;
     }
 
     return pType;
@@ -1209,6 +1212,12 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     pv.setEngValue(ValueUtility.getUint64Value(v));
     return pv;
   }
+
+  //  private static ParameterValue getPV(Parameter parameter, long time, Object v) {
+  //	    ParameterValue pv = getNewPv(parameter, time);
+  //	    pv.setEngValue(ValueUtility.getStringValue(v));
+  //	    return pv;
+  //	  }
 
   @Override
   public Status getLinkStatus() {
@@ -1378,6 +1387,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
    * @param node
    */
   private void addOPCUAPV(OpcUaClient client, UaNode node) {
+
     if (node.getBrowseName()
         .getName()
         .contains(Character.toString(NameDescription.PATH_SEPARATOR))) {
@@ -1743,15 +1753,158 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
                       nodeAttrKey.attrID));
             }
 
-            if (values.get(i).getValue() != null) {
-              tdef.addColumn(
-                  nodeIDToParamsMap.get(nodeAttrKey).getQualifiedName(), DataType.PARAMETER_VALUE);
+            if (values.get(i).getValue() != null && values.get(i).getValue().getValue() != null) {
+              //              tdef.addColumn(
+              //                  nodeIDToParamsMap.get(nodeAttrKey).getQualifiedName(),
+              // DataType.PARAMETER_VALUE);
 
-              cols.add(
-                  getPV(
-                      nodeIDToParamsMap.get(nodeAttrKey),
-                      gentime,
-                      values.get(i).getValue().toString()));
+              switch (nodeIDToParamsMap.get(nodeAttrKey).getParameterType().getValueType()) {
+                case AGGREGATE:
+                  {
+                    String value = (String) values.get(i).getValue().getValue();
+
+                    tdef.addColumn(
+                        nodeIDToParamsMap.get(nodeAttrKey).getQualifiedName(),
+                        DataType.PARAMETER_VALUE);
+                    cols.add(getPV(nodeIDToParamsMap.get(nodeAttrKey), gentime, value));
+                  }
+                  break;
+                case ARRAY:
+                  {
+                    String value = (String) values.get(i).getValue().getValue();
+
+                    tdef.addColumn(
+                        nodeIDToParamsMap.get(nodeAttrKey).getQualifiedName(),
+                        DataType.PARAMETER_VALUE);
+                    cols.add(getPV(nodeIDToParamsMap.get(nodeAttrKey), gentime, value));
+                  }
+                  break;
+                case BINARY:
+                  {
+                    String value = (String) values.get(i).getValue().getValue();
+                    tdef.addColumn(
+                        nodeIDToParamsMap.get(nodeAttrKey).getQualifiedName(),
+                        DataType.PARAMETER_VALUE);
+                    cols.add(getPV(nodeIDToParamsMap.get(nodeAttrKey), gentime, value));
+                  }
+                  break;
+                case BOOLEAN:
+                  {
+                    boolean value = (boolean) values.get(i).getValue().getValue();
+
+                    tdef.addColumn(
+                        nodeIDToParamsMap.get(nodeAttrKey).getQualifiedName(),
+                        DataType.PARAMETER_VALUE);
+                    cols.add(getPV(nodeIDToParamsMap.get(nodeAttrKey), gentime, value));
+                  }
+                  break;
+                case DOUBLE:
+                  {
+                    double value = (double) values.get(i).getValue().getValue();
+
+                    tdef.addColumn(
+                        nodeIDToParamsMap.get(nodeAttrKey).getQualifiedName(),
+                        DataType.PARAMETER_VALUE);
+                    cols.add(getPV(nodeIDToParamsMap.get(nodeAttrKey), gentime, value));
+                  }
+                  break;
+                case ENUMERATED:
+                  {
+                    String value = (String) values.get(i).getValue().getValue();
+
+                    tdef.addColumn(
+                        nodeIDToParamsMap.get(nodeAttrKey).getQualifiedName(),
+                        DataType.PARAMETER_VALUE);
+                    cols.add(getPV(nodeIDToParamsMap.get(nodeAttrKey), gentime, value));
+                  }
+                  break;
+                case FLOAT:
+                  {
+                    float value = (float) values.get(i).getValue().getValue();
+
+                    tdef.addColumn(
+                        nodeIDToParamsMap.get(nodeAttrKey).getQualifiedName(),
+                        DataType.PARAMETER_VALUE);
+                    cols.add(getPV(nodeIDToParamsMap.get(nodeAttrKey), gentime, value));
+                  }
+                  break;
+                case NONE:
+                  {
+                    String value = (String) values.get(i).getValue().getValue();
+
+                    tdef.addColumn(
+                        nodeIDToParamsMap.get(nodeAttrKey).getQualifiedName(),
+                        DataType.PARAMETER_VALUE);
+                    cols.add(getPV(nodeIDToParamsMap.get(nodeAttrKey), gentime, value));
+                  }
+                  break;
+                case SINT32:
+                  {
+                    int value = (int) values.get(i).getValue().getValue();
+                    tdef.addColumn(
+                        nodeIDToParamsMap.get(nodeAttrKey).getQualifiedName(),
+                        DataType.PARAMETER_VALUE);
+                    cols.add(getPV(nodeIDToParamsMap.get(nodeAttrKey), gentime, value));
+                  }
+                  break;
+                case SINT64:
+                  {
+                    long value = (long) values.get(i).getValue().getValue();
+
+                    tdef.addColumn(
+                        nodeIDToParamsMap.get(nodeAttrKey).getQualifiedName(),
+                        DataType.PARAMETER_VALUE);
+                    cols.add(getPV(nodeIDToParamsMap.get(nodeAttrKey), gentime, value));
+                  }
+                  break;
+                case STRING:
+                  {
+                    String value = (String) values.get(i).getValue().getValue().toString();
+
+                    tdef.addColumn(
+                        nodeIDToParamsMap.get(nodeAttrKey).getQualifiedName(),
+                        DataType.PARAMETER_VALUE);
+                    cols.add(getPV(nodeIDToParamsMap.get(nodeAttrKey), gentime, value));
+                  }
+                  break;
+                case TIMESTAMP:
+                  {
+                    String value = (String) values.get(i).getValue().getValue();
+
+                    tdef.addColumn(
+                        nodeIDToParamsMap.get(nodeAttrKey).getQualifiedName(),
+                        DataType.PARAMETER_VALUE);
+                    cols.add(getPV(nodeIDToParamsMap.get(nodeAttrKey), gentime, value));
+                  }
+                  break;
+                case UINT32:
+                  {
+                    int value = (int) values.get(i).getValue().getValue();
+                    tdef.addColumn(
+                        nodeIDToParamsMap.get(nodeAttrKey).getQualifiedName(),
+                        DataType.PARAMETER_VALUE);
+                    cols.add(getPV(nodeIDToParamsMap.get(nodeAttrKey), gentime, value));
+                  }
+                  break;
+                case UINT64:
+                  {
+                    long value = (long) values.get(i).getValue().getValue();
+
+                    tdef.addColumn(
+                        nodeIDToParamsMap.get(nodeAttrKey).getQualifiedName(),
+                        DataType.PARAMETER_VALUE);
+                    cols.add(getPV(nodeIDToParamsMap.get(nodeAttrKey), gentime, value));
+                  }
+                  break;
+                default:
+                  break;
+              }
+
+              //              cols.add(
+              //                  getPV(
+              //                      nodeIDToParamsMap.get(nodeAttrKey),
+              //                      gentime,
+              //                      values.get(i).getValue().getValue()));
 
               pushTuple(tdef, cols);
 
@@ -1886,20 +2039,17 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
         try {
 
           var value = node.readAttribute(attr).getValue();
-          client.readValue(0, TimestampsToReturn.Both, node.getNodeId());
+
           if (value.isNotNull()) {
 
-            Object valueObject = value.getValue().getClass();
+            Object valueObject = value.getValue();
 
             if (valueObject instanceof Short) {
               pType = getBasicType(mdb, Type.SINT32);
-            }
-
-            if (valueObject instanceof Integer) {
+            } else if (valueObject instanceof Integer) {
               pType = getBasicType(mdb, Type.SINT32);
-            }
 
-            if (valueObject instanceof Long) {
+            } else if (valueObject instanceof Long) {
               pType = getBasicType(mdb, Type.SINT64);
             } else if (valueObject instanceof Double) {
               pType = getBasicType(mdb, Type.DOUBLE);

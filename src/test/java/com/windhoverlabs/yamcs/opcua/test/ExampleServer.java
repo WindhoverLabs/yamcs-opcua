@@ -56,8 +56,8 @@ import org.slf4j.LoggerFactory;
 
 public class ExampleServer {
 
-  private static final int TCP_BIND_PORT = 12686;
-  private static final int HTTPS_BIND_PORT = 8443;
+  private static final int TCP_BIND_PORT = 12689;
+  private static final int HTTPS_BIND_PORT = 8447;
 
   static {
     // Required for SecurityPolicy.Aes256_Sha256_RsaPss

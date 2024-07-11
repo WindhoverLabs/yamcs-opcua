@@ -88,7 +88,7 @@ public class OPCUALinkTest extends AbstractOPCUAIntegrationTest {
     }
     super.before();
 
-    Thread.sleep(10000);
+    Thread.sleep(20000);
 
     var mdbClient = yamcsClient.createMissionDatabaseClient(yamcsInstance);
 
@@ -109,6 +109,15 @@ public class OPCUALinkTest extends AbstractOPCUAIntegrationTest {
             YamcsServer.getServer().getInstance(yamcsInstance).getLinkManager().getLink("tm_ocpua");
 
     assertEquals(Status.OK, l.getLinkStatus());
+
+    assertTrue(l.isRunningAndEnabled());
+
+    // Awaitility lets you wait until the asynchronous operation completes:
+    //    Awaitility.await()
+    //        .atMost(100, TimeUnit.SECONDS)
+    //        .until(() -> l.getCurrentOPCUAStatus() == OPCUAStatus.OPCUA_OK);
+
+    //    while(l.getCurrentOPCUAStatus() != OPCUAStatus.OPCUA_OK);
 
     assertEquals(OPCUAStatus.OPCUA_OK, l.getCurrentOPCUAStatus());
 

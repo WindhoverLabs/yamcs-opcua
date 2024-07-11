@@ -40,10 +40,10 @@ dataLinks:
     opcuaStream: "opcua_params"
     xtceOutputFile: opcua_xtce.xml
     # endpoint_url: "opc.tcp://localhost:4840/"
-    endpointUrl: "opc.tcp://localhost:12686/milo"
-    discoveryUrl: "opc.tcp://localhost:12686/milo/discovery"
+    endpointUrl: "opc.tcp://localhost:12689/milo"
+    discoveryUrl: "opc.tcp://localhost:12689/milo/discovery"
     parametersNamespace: "/instruments/tvac"
-    queryAllNodesAtStartup: true # defaults to false
+    queryAllNodesAtStartup: false # defaults to false
     publishInterval: 100
     
     # i 	Numeric (UInteger)
