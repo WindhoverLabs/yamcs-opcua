@@ -868,12 +868,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     return pv;
   }
 
-  public static ParameterValue getUnsignedIntPV(Parameter parameter, long time, int v) {
-    ParameterValue pv = getNewPv(parameter, time);
-    pv.setEngValue(ValueUtility.getUint64Value(v));
-    return pv;
-  }
-
   @Override
   public Status getLinkStatus() {
     return linkStatus;
@@ -1355,35 +1349,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
             if (values.get(i).getValue() != null && values.get(i).getValue().getValue() != null) {
 
               switch (nodeIDToParamsMap.get(nodeAttrKey).getParameterType().getValueType()) {
-                case AGGREGATE:
-                  {
-                    String value = (String) values.get(i).getValue().getValue();
-
-                    tdef.addColumn(
-                        nodeIDToParamsMap.get(nodeAttrKey).getQualifiedName(),
-                        DataType.PARAMETER_VALUE);
-                    cols.add(getPV(nodeIDToParamsMap.get(nodeAttrKey), gentime, value));
-                  }
-                  break;
-                case ARRAY:
-                  {
-                    String value = (String) values.get(i).getValue().getValue();
-
-                    tdef.addColumn(
-                        nodeIDToParamsMap.get(nodeAttrKey).getQualifiedName(),
-                        DataType.PARAMETER_VALUE);
-                    cols.add(getPV(nodeIDToParamsMap.get(nodeAttrKey), gentime, value));
-                  }
-                  break;
-                case BINARY:
-                  {
-                    String value = (String) values.get(i).getValue().getValue();
-                    tdef.addColumn(
-                        nodeIDToParamsMap.get(nodeAttrKey).getQualifiedName(),
-                        DataType.PARAMETER_VALUE);
-                    cols.add(getPV(nodeIDToParamsMap.get(nodeAttrKey), gentime, value));
-                  }
-                  break;
                 case BOOLEAN:
                   {
                     boolean value = (boolean) values.get(i).getValue().getValue();
