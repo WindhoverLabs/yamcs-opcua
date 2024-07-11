@@ -149,7 +149,7 @@ import org.yamcs.yarch.protobuf.Db.Event;
 
 /**
  * Implementation of the OPCUA protocol as a YAMCS link. Maps configured nodes(see docs for details)
- * to yamcs PVs and subscribes to OPCUA variables for reealtime updates.
+ * to yamcs PVs and subscribes to OPCUA variables for realtime updates.
  *
  * @author Lorenzo Gomez
  */
