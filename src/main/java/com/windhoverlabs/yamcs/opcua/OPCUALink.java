@@ -124,7 +124,6 @@ import org.yamcs.tctm.AbstractLink;
 import org.yamcs.tctm.Link;
 import org.yamcs.tctm.LinkAction;
 import org.yamcs.utils.ValueUtility;
-import org.yamcs.xtce.AbsoluteTimeParameterType;
 import org.yamcs.xtce.AggregateParameterType;
 import org.yamcs.xtce.BinaryParameterType;
 import org.yamcs.xtce.BooleanParameterType;
@@ -615,45 +614,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
               }
 
               switch (p.getParameterType().getValueType()) {
-                case AGGREGATE:
-                  {
-                    String value = "";
-                    if (node.readAttribute(attr).getValue().isNull()) {
-                      value = "NULL";
-                    } else {
-                      value = node.readAttribute(attr).getValue().getValue().toString();
-                    }
-
-                    tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
-                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
-                  }
-                  break;
-                case ARRAY:
-                  {
-                    String value = "";
-                    if (node.readAttribute(attr).getValue().isNull()) {
-                      value = "NULL";
-                    } else {
-                      value = node.readAttribute(attr).getValue().getValue().toString();
-                    }
-
-                    tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
-                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
-                  }
-                  break;
-                case BINARY:
-                  {
-                    String value = "";
-                    if (node.readAttribute(attr).getValue().isNull()) {
-                      value = "NULL";
-                    } else {
-                      value = node.readAttribute(attr).getValue().getValue().toString();
-                    }
-
-                    tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
-                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
-                  }
-                  break;
                 case BOOLEAN:
                   {
                     String value = "";
@@ -675,19 +635,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
                       //                    	FIXME:Log warning
                     } else {
                       value = (double) node.readAttribute(attr).getValue().getValue();
-                    }
-
-                    tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
-                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
-                  }
-                  break;
-                case ENUMERATED:
-                  {
-                    String value = "";
-                    if (node.readAttribute(attr).getValue().isNull()) {
-                      value = "NULL";
-                    } else {
-                      value = node.readAttribute(attr).getValue().getValue().toString();
                     }
 
                     tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
@@ -750,19 +697,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
                   }
                   break;
                 case STRING:
-                  {
-                    String value = "";
-                    if (node.readAttribute(attr).getValue().isNull()) {
-                      value = "NULL";
-                    } else {
-                      value = node.readAttribute(attr).getValue().getValue().toString();
-                    }
-
-                    tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
-                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
-                  }
-                  break;
-                case TIMESTAMP:
                   {
                     String value = "";
                     if (node.readAttribute(attr).getValue().isNull()) {
@@ -862,8 +796,8 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
       case BOOLEAN:
         return getOrCreateType(mdb, "boolean", () -> new BooleanParameterType.Builder());
       case STRING:
-        pType = getOrCreateType(mdb, "string", () -> new StringParameterType.Builder());
-        break;
+        return getOrCreateType(mdb, "string", () -> new StringParameterType.Builder());
+
       case FLOAT:
         return getOrCreateType(
             mdb, "float32", () -> new FloatParameterType.Builder().setSizeInBits(32));
@@ -890,16 +824,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
             mdb,
             "uint64",
             () -> new IntegerParameterType.Builder().setSizeInBits(64).setSigned(false));
-      case TIMESTAMP:
-        return getOrCreateType(mdb, "time", () -> new AbsoluteTimeParameterType.Builder());
-      case ENUMERATED:
-        return getOrCreateType(mdb, "enum", () -> new EnumeratedParameterType.Builder());
-      case AGGREGATE:
-        break;
-      case ARRAY:
-        break;
-      case NONE:
-        break;
       default:
         break;
     }
