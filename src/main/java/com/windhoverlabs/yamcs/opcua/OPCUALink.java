@@ -563,8 +563,8 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
   }
 
   /**
-   * Reads all attributes of all configured nodes and updates their corresponding PV. Useful for
-   * querying data from the OPCUA server once, data such as browse names, NodeIds, etc.
+   * Reads all attributes of all configured Value nodes and updates their corresponding PV. Useful
+   * for querying data from the OPCUA server once, data such as browse names, NodeIds, etc.
    */
   private void queryAllOPCUAData() {
     TupleDefinition tdef = gftdef.copy();
@@ -598,20 +598,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
         DataValue nodeClass = node.readAttribute(AttributeId.NodeClass);
 
         switch (NodeClass.from((int) nodeClass.getValue().getValue())) {
-          case DataType:
-            //                tdef.addColumn(pair.getValue().getQualifiedName(),
-            // DataType.PARAMETER_VALUE);
-            //                cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(),
-            // "PlaceHolder"));
-            //            columnCount++;
-            break;
-          case Method:
-            //                tdef.addColumn(pair.getValue().getQualifiedName(),
-            // DataType.PARAMETER_VALUE);
-            //                cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(),
-            // "PlaceHolder"));
-            //            columnCount++;
-            break;
           case Object:
             //                tdef.addColumn(pair.getValue().getQualifiedName(),
             // DataType.PARAMETER_VALUE);
@@ -832,27 +818,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
               columnCount++;
             }
-            break;
-          case ObjectType:
-            //                tdef.addColumn(pair.getValue().getQualifiedName(),
-            // DataType.PARAMETER_VALUE);
-            //                cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(),
-            // "PlaceHolder"));
-            //            columnCount++;
-            break;
-          case ReferenceType:
-            //                tdef.addColumn(pair.getValue().getQualifiedName(),
-            // DataType.PARAMETER_VALUE);
-            //                cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(),
-            // "PlaceHolder"));
-            //            columnCount++;
-            break;
-          case Unspecified:
-            //                tdef.addColumn(pair.getValue().getQualifiedName(),
-            // DataType.PARAMETER_VALUE);
-            //                cols.add(getPV(pair.getValue(), Instant.now().toEpochMilli(),
-            // "PlaceHolder"));
-            //            columnCount++;
             break;
           case Variable:
             for (AttributeId attr : AttributeId.VARIABLE_ATTRIBUTES) {
@@ -1212,12 +1177,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     pv.setEngValue(ValueUtility.getUint64Value(v));
     return pv;
   }
-
-  //  private static ParameterValue getPV(Parameter parameter, long time, Object v) {
-  //	    ParameterValue pv = getNewPv(parameter, time);
-  //	    pv.setEngValue(ValueUtility.getStringValue(v));
-  //	    return pv;
-  //	  }
 
   @Override
   public Status getLinkStatus() {
