@@ -59,7 +59,6 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import org.eclipse.milo.opcua.sdk.client.OpcUaClient;
@@ -148,6 +147,12 @@ import org.yamcs.yarch.YarchDatabase;
 import org.yamcs.yarch.YarchDatabaseInstance;
 import org.yamcs.yarch.protobuf.Db.Event;
 
+/**
+ * Implementation of the OPCUA protocol as a YAMCS link. Maps configured nodes(see docs for details)
+ * to yamcs PVs and subscribes to OPCUA variables for reealtime updates.
+ *
+ * @author Lorenzo Gomez
+ */
 public class OPCUALink extends AbstractLink implements Runnable, SystemParametersProducer {
 
   class NodeIDAttrPair {
@@ -396,6 +401,10 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     throw new NotFoundException("No such space system");
   }
 
+  /**
+   * Initializes all PV mappings to OPCUA nodes and realtime subscriptions(managed data items in
+   * OPCUA terms).
+   */
   private void opcuaInit() {
     //  	FIXME:Might need to move this function to start(), maybe...
 
@@ -403,13 +412,11 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     createOPCUANodeIdTypes();
     mdb.addParameterType(opcuaAttrsType, true);
 
-    final CompletableFuture<OpcUaClient> future = new CompletableFuture<>();
-
     try {
 
       currentOPCUAStatus = OPCUAStatus.OPCUA_INIT_TREE;
 
-      browseOPCUATree(client, future);
+      browseOPCUATree(client);
 
       currentOPCUAStatus = OPCUAStatus.OPCUA_INIT_GENERATE_XTCE;
 
@@ -555,6 +562,10 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     }
   }
 
+  /**
+   * Reads all attributes of all configured nodes and updates their corresponding PV. Useful for
+   * querying data from the OPCUA server once, data such as browse names, NodeIds, etc.
+   */
   private void queryAllOPCUAData() {
 
     TupleDefinition tdef = gftdef.copy();
@@ -1199,19 +1210,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     return pv;
   }
 
-  //
-  //  public static <T extends Enum<T>> ParameterValue getPV(Parameter parameter, long time, T v) {
-  //    ParameterValue pv = getNewPv(parameter, time);
-  //    pv.setEngValue(ValueUtility.getEnumeratedValue(v.ordinal(), v.name()));
-  //    return pv;
-  //  }
-  //
-  //  public static ParameterValue getPV(Parameter parameter, long time, Value v) {
-  //    ParameterValue pv = getNewPv(parameter, time);
-  //    pv.setEngValue(v);
-  //    return pv;
-  //  }
-
   @Override
   public Status getLinkStatus() {
     return linkStatus;
@@ -1241,6 +1239,13 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     inCount.set(0);
   }
 
+  /**
+   * Selects first non-secured endpoint from endpoints found at discover URL. At the moment secured
+   * endpoints are not supported.
+   *
+   * @return
+   * @throws Exception
+   */
   private OpcUaClient configureClient() throws Exception {
     Path securityTempDir = Paths.get(System.getProperty("java.io.tmpdir"), "client", "security");
     Files.createDirectories(securityTempDir);
@@ -1291,6 +1296,13 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     return OpcUaClient.create(builder);
   }
 
+  /**
+   * Browse all nodes starting from browseRoot.
+   *
+   * @param indent
+   * @param client
+   * @param browseRoot
+   */
   private void browseNodeWithReferences(String indent, OpcUaClient client, NodeId browseRoot) {
     BrowseDescription browse =
         new BrowseDescription(
@@ -1359,6 +1371,12 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     }
   }
 
+  /**
+   * Adds new PV with the name of node.
+   *
+   * @param client
+   * @param node
+   */
   private void addOPCUAPV(OpcUaClient client, UaNode node) {
     if (node.getBrowseName()
         .getName()
@@ -1393,6 +1411,14 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     }
   }
 
+  /**
+   * Map nodeID name to a qualified name that can be used for a YAMCS PV.
+   *
+   * @param client
+   * @param node
+   * @param attr
+   * @return
+   */
   private String translateNodeToParamQName(OpcUaClient client, UaNode node, AttributeId attr) {
     LocalizedText localizedDisplayName = null;
     try {
@@ -1469,6 +1495,8 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
   //  }
 
   /**
+   * Browse node at nodePath relative to browseRoot.
+   *
    * @param indent
    * @param client
    * @param browseRoot
@@ -1594,15 +1622,12 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
    * Browses the tree on the OPCUA server and maps them to YAMCS Parameters.
    *
    * @param client
-   * @param future
    */
-  private void browseOPCUATree(OpcUaClient client, CompletableFuture<OpcUaClient> future) {
+  private void browseOPCUATree(OpcUaClient client) {
     // start browsing at root folder
     internalLogger.info("Browsing OPCUA...");
     for (var p : relativeNodePaths) {
-
       int namespaceIndex = (int) p.rootNodeID.get("namespaceIndex");
-
       String identifier = (String) p.rootNodeID.get("identifier");
       IdType identifierType = IdType.valueOf((String) p.rootNodeID.get("identifierType"));
 
@@ -1615,10 +1640,17 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
     //  FIXME:Make root default when no namespaceIndex/identifier pair is specified
     browseNodeWithReferences("", client, nodeID);
-
-    future.complete(client);
   }
 
+  /**
+   * Get new OPCUA-compliant NodeID object create from NamespaceIndex and Identifier. At the moment
+   * only String and Numeric node ids are supported.
+   *
+   * @param rootIdentifierType
+   * @param NamespaceIndex
+   * @param Identifier
+   * @return
+   */
   private NodeId getNewNodeID(IdType rootIdentifierType, int NamespaceIndex, String Identifier) {
     NodeId nodeID = null;
     switch (rootIdentifierType) {
@@ -1642,6 +1674,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     return nodeID;
   }
 
+  /** Data listener for realtime OPCUA server updates. */
   private void createDataChangeListener() {
     try {
       opcuaSubscription = ManagedSubscription.create(client, publishInterval);
@@ -1689,25 +1722,11 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
              * <p>Another option is to flatten everything and have no aggregate types at all. That
              * approach might even simplify the code quite a bit...
              *
-             * <p>Another question worth answering before moving forward is to find whether or not
-             * it is concrete in the OPCUA protocol what data can change in real time and which data
-             * is "static". Not sure if there is any "static" data given that clients have the
+             * <p>Another question worth answering before moving forward is to find out whether or
+             * not it is concrete in the OPCUA protocol what data can change in real time and which
+             * data is "static". Not sure if there is any "static" data given that clients have the
              * ability of writing to values... might be worth a test.
              */
-
-            // FIMXE:Properly add aggregatevalues instead of getPV flat values
-            //            AggregateValue v = new
-            // AggregateValue(fileStoreAggrType.getMemberNames());
-            //            v.setMemberValue("total", ValueUtility.getSint64Value(ts / 1024));
-            //            v.setMemberValue("available", ValueUtility.getSint64Value(av / 1024));
-            //            v.setMemberValue("percentageUse", ValueUtility.getFloatValue(perc));
-            //
-            //            ParameterValue pv = new ParameterValue(storep.param);
-            //            pv.setGenerationTime(gentime);
-            //            pv.setAcquisitionTime(gentime);
-            //            pv.setAcquisitionStatus(AcquisitionStatus.ACQUIRED);
-            //            pv.setEngValue(v);
-
             log.debug(
                 "Data({}) chnage triggered for {}",
                 values.get(i).getValue(),
@@ -1979,13 +1998,9 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     // do something with the value updates
     UaMonitoredItem monitoredItem = items.get(0);
 
-    final AtomicInteger eventCount = new AtomicInteger(0);
-
     monitoredItem.setEventConsumer(
         (item, vs) -> {
           internalLogger.info("Event Received from {}", item.getReadValueId().getNodeId());
-
-          //          System.out.println("Event Received from" + item.getReadValueId().getNodeId());
 
           StringBuilder eventText = new StringBuilder();
 
