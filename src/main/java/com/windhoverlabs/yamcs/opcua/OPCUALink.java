@@ -40,9 +40,7 @@ import static org.yamcs.xtce.NameDescription.qualifiedName;
 
 import com.google.gson.JsonObject;
 import java.io.BufferedWriter;
-import java.io.File;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.time.Instant;
@@ -125,7 +123,6 @@ import org.yamcs.tctm.Link;
 import org.yamcs.tctm.LinkAction;
 import org.yamcs.utils.ValueUtility;
 import org.yamcs.xtce.AggregateParameterType;
-import org.yamcs.xtce.BinaryParameterType;
 import org.yamcs.xtce.BooleanParameterType;
 import org.yamcs.xtce.EnumeratedParameterType;
 import org.yamcs.xtce.FloatParameterType;
@@ -655,19 +652,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
                     cols.add(getPV(p, Instant.now().toEpochMilli(), value));
                   }
                   break;
-                case NONE:
-                  {
-                    String value = "";
-                    if (node.readAttribute(attr).getValue().isNull()) {
-                      value = "NULL";
-                    } else {
-                      value = node.readAttribute(attr).getValue().getValue().toString();
-                    }
-
-                    tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
-                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
-                  }
-                  break;
                 case SINT32:
                   {
                     int value = 0;
@@ -791,8 +775,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
   public static ParameterType getBasicType(XtceDb mdb, Type type) {
     ParameterType pType = null;
     switch (type) {
-      case BINARY:
-        return getOrCreateType(mdb, "binary", () -> new BinaryParameterType.Builder());
       case BOOLEAN:
         return getOrCreateType(mdb, "boolean", () -> new BooleanParameterType.Builder());
       case STRING:
@@ -905,16 +887,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
    * @throws Exception
    */
   private OpcUaClient configureClient() throws Exception {
-    Path securityTempDir = Paths.get(System.getProperty("java.io.tmpdir"), "client", "security");
-    Files.createDirectories(securityTempDir);
-    if (!Files.exists(securityTempDir)) {
-      throw new Exception("unable to create security dir: " + securityTempDir);
-    }
-
-    File pkiDir = securityTempDir.resolve("pki").toFile();
-
-    LoggerFactory.getLogger(getClass()).info("security dir: {}", securityTempDir.toAbsolutePath());
-    LoggerFactory.getLogger(getClass()).info("security pki dir: {}", pkiDir.getAbsolutePath());
 
     List<EndpointDescription> endpoints = DiscoveryClient.getEndpoints(discoverURL).get();
 
@@ -1009,8 +981,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
           log.debug(
               "{} Node={}, Desc={}, Value={}", indent, rd.getBrowseName().getName(), desc, value);
-
-          if (rd.getIsForward()) {}
 
           // recursively browse to children
           rd.getNodeId()
@@ -1369,29 +1339,9 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
                     cols.add(getPV(nodeIDToParamsMap.get(nodeAttrKey), gentime, value));
                   }
                   break;
-                case ENUMERATED:
-                  {
-                    String value = (String) values.get(i).getValue().getValue();
-
-                    tdef.addColumn(
-                        nodeIDToParamsMap.get(nodeAttrKey).getQualifiedName(),
-                        DataType.PARAMETER_VALUE);
-                    cols.add(getPV(nodeIDToParamsMap.get(nodeAttrKey), gentime, value));
-                  }
-                  break;
                 case FLOAT:
                   {
                     float value = (float) values.get(i).getValue().getValue();
-
-                    tdef.addColumn(
-                        nodeIDToParamsMap.get(nodeAttrKey).getQualifiedName(),
-                        DataType.PARAMETER_VALUE);
-                    cols.add(getPV(nodeIDToParamsMap.get(nodeAttrKey), gentime, value));
-                  }
-                  break;
-                case NONE:
-                  {
-                    String value = (String) values.get(i).getValue().getValue();
 
                     tdef.addColumn(
                         nodeIDToParamsMap.get(nodeAttrKey).getQualifiedName(),
