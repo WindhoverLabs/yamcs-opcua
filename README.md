@@ -26,14 +26,6 @@
           namespaceIndex: 0
           identifierType: Numeric
           identifier: "85"  #84 is Root
-
-
-  #FIXME: Make browsing the root node by reference optional.
-    rootNodeID: #Link starts browsing at this node
-      namespaceIndex: 0
-      identifierType: Numeric
-      identifier: "84"  #84 is Root
-
 ```
 
 ###  Notes For Users
