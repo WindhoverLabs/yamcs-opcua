@@ -1,0 +1,4350 @@
+#Configuration tested on YAMCS 5.4.0
+services:
+  - class: org.yamcs.archive.XtceTmRecorder
+  - class: org.yamcs.archive.ParameterRecorder
+  - class: org.yamcs.archive.AlarmRecorder
+  - class: org.yamcs.archive.EventRecorder
+  - class: org.yamcs.archive.ReplayServer
+  - class: org.yamcs.parameter.SystemParametersCollector
+    args:
+      provideJvmVariables: true
+      provideFsVariables: true
+      # Uncomment to pipe replays to a UDP socket
+  # - class: com.windhoverlabs.yamcs.archive.ReplayToUDPService
+  #   args:
+  #     start: "2023-08-02T15:15:11.25Z"
+  #     stop: "2023-08-02T16:00:11.25Z"
+  #     pvMap:
+  #       # Altitude: "/cfs/cpd/apps/hes/HES_HK_TLM_MID.altitude[0]"
+  #       # Roll: "/cfs/cpd/apps/hes/HES_HK_TLM_MID.rollDegrees" # radians
+  #       # Pitch: "/cfs/cpd/apps/hes/HES_HK_TLM_MID.pitchDegrees" # radians
+  #       # Yaw: "/cfs/cpd/apps/hes/HES_HK_TLM_MID.headingDegrees" # radians
+  #       # Lat: "/cfs/cpd/apps/hes/HES_HK_TLM_MID.Lat"
+  #       # Lon: "/cfs/cpd/apps/hes/HES_HK_TLM_MID.Lon"
+  #       # Altitude: "/cfs/cpd/apps/vn310/VN310_OUT_DATA_MID.PosLla_Alt"
+  #       alt: "/cfs/cpd/apps/hes/HES_HK_TLM_MID.altitude[0]"
+  #       # roll: "/cfs/cpd/apps/hes/HES_HK_TLM_MID.rollDegrees" # radians
+  #       # pitch: "/cfs/cpd/apps/hes/HES_HK_TLM_MID.pitchDegrees" # radians
+  #       # yaw: "/cfs/cpd/apps/hes/HES_HK_TLM_MID.headingDegrees" # radians
+  #       lat: "/cfs/cpd/apps/hes/HES_HK_TLM_MID.Lat"
+  #       lon: "/cfs/cpd/apps/hes/HES_HK_TLM_MID.Lon"
+  #       q1: "/cfs/cpd/apps/vn310/VN310_OUT_DATA_MID.Qtn[0]"
+  #       q2: "/cfs/cpd/apps/vn310/VN310_OUT_DATA_MID.Qtn[1]"
+  #       q3: "/cfs/cpd/apps/vn310/VN310_OUT_DATA_MID.Qtn[2]"
+  #       q4: "/cfs/cpd/apps/vn310/VN310_OUT_DATA_MID.Qtn[3]"
+  #     # address: "172.16.100.149"
+  #     # port: 8000
+  #     yamcsPort: 8090
+  - class: org.yamcs.ProcessorCreatorService
+    args:
+      name: realtime
+      type: realtime
+  - class: org.yamcs.archive.CommandHistoryRecorder
+  - class: org.yamcs.parameterarchive.ParameterArchive
+    args:
+      realtimeFiller:
+        enabled: true  # Needs to be enabled to record algorithm outputs
+      backFiller:
+        enabled: true
+        warmupTime: 60
+  - class: org.yamcs.tctm.cfs.CfsEventDecoder
+    args:
+      msgIds: [0x0815, 0x0a15] #Always confirm this ID with CFE_EVS configuration
+      byteOrder: LITTLE_ENDIAN
+      appNameMax: 40
+      eventMsgMax: 122
+
+  # - class: org.yamcs.cfdp.CfdpService
+  #   name: cfdp
+  #   args:
+  #     inStream: cfdp_in
+  #     outStream: cfdp_out
+  #     localEntities:
+  #       - name: "0.1"
+  #         id: 1
+  #         bucket: cfdpDown
+  #     remoteEntities:
+  #       - name: "0.2"
+  #         id: 2
+  #         bucket: cfdpUp
+  #     receiverFaultHandlers:
+  #       AckLimitReached: suspend
+        
+  - class: org.yamcs.replication.ReplicationMaster
+    args:
+      tcpRole: server
+      streams: ["tm_realtime", "sys_param", "proc_param"]
+      #maxPages: 500
+      #pageSize: 500
+      #expirationDays: 7
+      #fileCloseTimeSec: 300
+      #maxFileSizeKB: 102400  #100MB
+  - class: org.yamcs.replication.ReplicationSlave
+    args:
+      tcpRole: server
+       #masterHost: localhost
+       #masterPort: 8099
+       #masterInstance: node1
+       #enableTls: false
+       #reconnectionIntervalSec: 30
+      streams: ["tc_realtime"]
+       #lastTxFile: "slave-lastid.txt"
+
+  # - class: com.windhoverlabs.yamcs.archive.CSVExporter
+  #   name: "csv_exporter"
+  #   args:
+  #     bucket: "cfdpDown"
+  #     start: "2024-01-29T11:36:00.975Z"
+  #     stop: "2024-01-29T11:45:00.975Z"
+  #     params:
+  #       TO_HK_TLM_MID:
+  #         - /cfs/ppd/apps/to/TO_HK_TLM_MID.CmdCnt
+  #         - /cfs/ppd/apps/to/TO_HK_TLM_MID.CmdErrCnt
+  #         - /cfs/ppd/apps/to/TO_HK_TLM_MID.SentBytes
+  #         - /cfs/ppd/apps/to/TO_HK_TLM_MID.ChannelMaxMem
+  #         - /cfs/ppd/apps/to/TO_HK_TLM_MID.ChannelInfo[0].MemInUse
+  #         - /cfs/ppd/apps/to/TO_HK_TLM_MID.ChannelInfo[0].PeakMemInUse
+  #         - /cfs/ppd/apps/to/TO_HK_TLM_MID.ChannelInfo[0].TotalQueued
+  #         - /cfs/ppd/apps/to/TO_HK_TLM_MID.ChannelInfo[0].MessagesSent
+  #         - /cfs/ppd/apps/to/TO_HK_TLM_MID.ChannelInfo[0].SentBytes
+  #         - /cfs/ppd/apps/to/TO_HK_TLM_MID.ChannelInfo[0].CurrentlyQueuedCnt
+  #       AIRLINER_VEHICLE_ATTITUDE_SETPOINT_MID:
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_ATTITUDE_SETPOINT_MID.Timestamp
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_ATTITUDE_SETPOINT_MID.RollBody
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_ATTITUDE_SETPOINT_MID.YawBody
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_ATTITUDE_SETPOINT_MID.PitchBody
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_ATTITUDE_SETPOINT_MID.YawSpMoveRate
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_ATTITUDE_SETPOINT_MID.Q_D[0]
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_ATTITUDE_SETPOINT_MID.Q_D[1]
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_ATTITUDE_SETPOINT_MID.Q_D[2]
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_ATTITUDE_SETPOINT_MID.Q_D[3]
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_ATTITUDE_SETPOINT_MID.Q_D_Valid
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_ATTITUDE_SETPOINT_MID.Thrust
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_ATTITUDE_SETPOINT_MID.RollResetIntegral
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_ATTITUDE_SETPOINT_MID.PitchResetIntegral
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_ATTITUDE_SETPOINT_MID.YawResetIntegral
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_ATTITUDE_SETPOINT_MID.FwControlYaw
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_ATTITUDE_SETPOINT_MID.DisableMcYawControl
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_ATTITUDE_SETPOINT_MID.ApplyFlaps
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_ATTITUDE_SETPOINT_MID.LandingGear
+  #       # VN310_GPS_POSITION_MID:
+  #       #   - /cfs/cpd/apps/vn310/VN310_GPS_POSITION_MID.Timestamp
+  #       #   - /cfs/cpd/apps/vn310/VN310_GPS_POSITION_MID.Lat
+  #       #   - /cfs/cpd/apps/vn310/VN310_GPS_POSITION_MID.Lon
+  #       #   - /cfs/cpd/apps/vn310/VN310_GPS_POSITION_MID.Alt
+  #       #   - /cfs/cpd/apps/vn310/VN310_GPS_POSITION_MID.AltEllipsoid
+  #       #   - /cfs/cpd/apps/vn310/VN310_GPS_POSITION_MID.SVariance
+  #       #   - /cfs/cpd/apps/vn310/VN310_GPS_POSITION_MID.CVariance
+  #       #   - /cfs/cpd/apps/vn310/VN310_GPS_POSITION_MID.EpH
+  #       #   - /cfs/cpd/apps/vn310/VN310_GPS_POSITION_MID.EpV
+  #       #   - /cfs/cpd/apps/vn310/VN310_GPS_POSITION_MID.HDOP
+  #       #   - /cfs/cpd/apps/vn310/VN310_GPS_POSITION_MID.VDOP
+  #       #   - /cfs/cpd/apps/vn310/VN310_GPS_POSITION_MID.NoisePerMs
+  #       #   - /cfs/cpd/apps/vn310/VN310_GPS_POSITION_MID.JammingIndicator
+  #       #   - /cfs/cpd/apps/vn310/VN310_GPS_POSITION_MID.Vel_m_s
+  #       #   - /cfs/cpd/apps/vn310/VN310_GPS_POSITION_MID.Vel_n_m_s 
+  #       #   - /cfs/cpd/apps/vn310/VN310_GPS_POSITION_MID.Vel_e_m_s
+  #       #   - /cfs/cpd/apps/vn310/VN310_GPS_POSITION_MID.Vel_d_m_s
+  #       #   - /cfs/cpd/apps/vn310/VN310_GPS_POSITION_MID.COG
+  #       #   - /cfs/cpd/apps/vn310/VN310_GPS_POSITION_MID.TimestampTimeRelative
+  #       #   - /cfs/cpd/apps/vn310/VN310_GPS_POSITION_MID.FixType
+  #       #   - /cfs/cpd/apps/vn310/VN310_GPS_POSITION_MID.VelNedValid
+  #       #   - /cfs/cpd/apps/vn310/VN310_GPS_POSITION_MID.SatellitesUsed
+  #       VN310_HK_TLM_MID:
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.ImuDataRcvCnt
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.Gnss1DataRcvCnt
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.AttitudeDataRcvCnt
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.InsDataRcvCnt
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.OutDataSentCount
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.FrameParseErrCnt
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.FrameCrcErrCnt
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.TimeData.TimeUtc.year
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.TimeData.TimeUtc.month
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.TimeData.TimeUtc.day
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.TimeData.TimeUtc.hour
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.TimeData.TimeUtc.min
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.TimeData.TimeUtc.sec
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.TimeData.TimeUtc.milisec
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.TimeData.SyncInCnt
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.TimeData.TimeStatus
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.ImuData.UncompMag_X
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.ImuData.UncompMag_Y
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.ImuData.UncompMag_Z
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.ImuData.UncompAccel_X
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.ImuData.UncompAccel_Y
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.ImuData.UncompAccel_Z
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.ImuData.UncompGyro_X
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.ImuData.UncompGyro_Y
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.ImuData.UncompGyro_Z
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.ImuData.Temp
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.ImuData.Rate_X
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.ImuData.Rate_Y
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.ImuData.Rate_Z
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.Gnss1Data.NumSats
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.Gnss1Data.Fix
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.Gnss1Data.PosLla_Lat
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.Gnss1Data.PosLla_Lon
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.Gnss1Data.PosLla_Alt
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.Gnss1Data.VelNed_N
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.Gnss1Data.VelNed_E
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.Gnss1Data.VelNed_D
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.Gnss1Data.PosU_N
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.Gnss1Data.PosU_E
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.Gnss1Data.PosU_D
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.Gnss1Data.VelU
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.Gnss1Data.TimeU
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.Gnss1Data.gDOP
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.Gnss1Data.pDOP
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.Gnss1Data.tDOP
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.Gnss1Data.vDOP
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.Gnss1Data.hDOP
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.Gnss1Data.nDOP
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.Gnss1Data.eDOP
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.AttitudeData.Qtn[0]
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.AttitudeData.Qtn[1]
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.AttitudeData.Qtn[2]
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.AttitudeData.Qtn[3]
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.AttitudeData.Accel_N
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.AttitudeData.Accel_E
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.AttitudeData.Accel_D
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.InsData.InsStatus
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.InsData.PosLla_Lat
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.InsData.PosLla_Lon
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.InsData.PosLla_Alt
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.InsData.VelNed_N
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.InsData.VelNed_E
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.InsData.VelNed_D
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.InsData.PosU
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.InsData.VelU
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.InsStatus
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.InsStatusMode
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.InsStatusGpsFix
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.InsStatusReserved1
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.InsStatusImuErr
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.InsStatusMagPressErr
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.InsStatusGnssErr
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.InsStatusReserved2
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.InsStatusGpsHeadingIns
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.InsStatusGpsCompass
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.InsStatusReserved3
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.TimeSet
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.TimeOk
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.DateOk
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.UtcTimeValid
+  #         - /cfs/cpd/apps/vn310/VN310_HK_TLM_MID.TimeUtcUsec
+
+  #       AIRLINER_ACTUATOR_OUTPUTS_MID:
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_ACTUATOR_OUTPUTS_MID.Timestamp
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_ACTUATOR_OUTPUTS_MID.Output[0]
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_ACTUATOR_OUTPUTS_MID.Output[1]
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_ACTUATOR_OUTPUTS_MID.Output[2]
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_ACTUATOR_OUTPUTS_MID.Output[3]
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_ACTUATOR_OUTPUTS_MID.Output[4]
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_ACTUATOR_OUTPUTS_MID.Output[5]
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_ACTUATOR_OUTPUTS_MID.Output[6]
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_ACTUATOR_OUTPUTS_MID.Output[7]
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_ACTUATOR_OUTPUTS_MID.Output[8]
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_ACTUATOR_OUTPUTS_MID.Output[9]
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_ACTUATOR_OUTPUTS_MID.Output[10]
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_ACTUATOR_OUTPUTS_MID.Output[11]
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_ACTUATOR_OUTPUTS_MID.Output[12]
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_ACTUATOR_OUTPUTS_MID.Output[13]
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_ACTUATOR_OUTPUTS_MID.Output[14]
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_ACTUATOR_OUTPUTS_MID.Output[15]
+  #       AIRLINER_VEHICLE_GLOBAL_POSITION_MID:
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_GLOBAL_POSITION_MID.Timestamp
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_GLOBAL_POSITION_MID.Lat
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_GLOBAL_POSITION_MID.Lon
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_GLOBAL_POSITION_MID.Alt
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_GLOBAL_POSITION_MID.DeltaLatLon
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_GLOBAL_POSITION_MID.DeltaAlt
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_GLOBAL_POSITION_MID.LatLonResetCounter
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_GLOBAL_POSITION_MID.AltResetCounter
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_GLOBAL_POSITION_MID.VelN
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_GLOBAL_POSITION_MID.VelE
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_GLOBAL_POSITION_MID.VelD
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_GLOBAL_POSITION_MID.Yaw
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_GLOBAL_POSITION_MID.EpH
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_GLOBAL_POSITION_MID.EpV
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_GLOBAL_POSITION_MID.EvH
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_GLOBAL_POSITION_MID.EvV
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_GLOBAL_POSITION_MID.TerrainAlt
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_GLOBAL_POSITION_MID.PressureAlt
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_GLOBAL_POSITION_MID.DeadReckoning
+  #       AIRLINER_VEHICLE_ATTITUDE_MID:
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_ATTITUDE_MID.Timestamp
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_ATTITUDE_MID.RollSpeed
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_ATTITUDE_MID.PitchSpeed
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_ATTITUDE_MID.YawSpeed
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_ATTITUDE_MID.Q[0]
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_ATTITUDE_MID.Q[1]
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_ATTITUDE_MID.Q[2]
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_ATTITUDE_MID.Q[3]
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_ATTITUDE_MID.Alpha
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_ATTITUDE_MID.Beta
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_ATTITUDE_MID.Alpha_INS
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_ATTITUDE_MID.Beta_INS
+  #       AIRLINER_VEHICLE_RATES_SETPOINT_MID:
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_RATES_SETPOINT_MID.Timestamp
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_RATES_SETPOINT_MID.Roll
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_RATES_SETPOINT_MID.Pitch
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_RATES_SETPOINT_MID.Yaw
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_RATES_SETPOINT_MID.Thrust
+  #       AIRLINER_ACTUATOR_CONTROLS_0_MID:
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_ACTUATOR_CONTROLS_0_MID.Timestamp
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_ACTUATOR_CONTROLS_0_MID.SampleTime
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_ACTUATOR_CONTROLS_0_MID.Control[0]
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_ACTUATOR_CONTROLS_0_MID.Control[1]
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_ACTUATOR_CONTROLS_0_MID.Control[2]
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_ACTUATOR_CONTROLS_0_MID.Control[3]
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_ACTUATOR_CONTROLS_0_MID.Control[4]
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_ACTUATOR_CONTROLS_0_MID.Control[5]
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_ACTUATOR_CONTROLS_0_MID.Control[6]
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_ACTUATOR_CONTROLS_0_MID.Control[7]
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_ACTUATOR_CONTROLS_0_MID.Control[8]
+  #       AIRLINER_SENSOR_ACCEL_MID:
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_SENSOR_ACCEL_MID.Timestamp
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_SENSOR_ACCEL_MID.IntegralDt
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_SENSOR_ACCEL_MID.ErrorCount
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_SENSOR_ACCEL_MID.X
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_SENSOR_ACCEL_MID.Y
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_SENSOR_ACCEL_MID.Z
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_SENSOR_ACCEL_MID.XIntegral
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_SENSOR_ACCEL_MID.YIntegral
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_SENSOR_ACCEL_MID.ZIntegral
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_SENSOR_ACCEL_MID.Temperature
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_SENSOR_ACCEL_MID.Range_m_s2
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_SENSOR_ACCEL_MID.Scaling
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_SENSOR_ACCEL_MID.DeviceID
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_SENSOR_ACCEL_MID.XRaw
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_SENSOR_ACCEL_MID.YRaw
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_SENSOR_ACCEL_MID.ZRaw
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_SENSOR_ACCEL_MID.TemperatureRaw
+  #       AIRLINER_SENSOR_BARO_MID:
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_SENSOR_BARO_MID.Timestamp
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_SENSOR_BARO_MID.ErrorCount
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_SENSOR_BARO_MID.Pressure
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_SENSOR_BARO_MID.Altitude
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_SENSOR_BARO_MID.Temperature
+  #       AIRLINER_SENSOR_GYRO_MID:
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_SENSOR_GYRO_MID.Timestamp
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_SENSOR_GYRO_MID.IntegralDt
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_SENSOR_GYRO_MID.X
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_SENSOR_GYRO_MID.Y
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_SENSOR_GYRO_MID.Z
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_SENSOR_GYRO_MID.XIntegral
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_SENSOR_GYRO_MID.YIntegral
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_SENSOR_GYRO_MID.ZIntegral
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_SENSOR_GYRO_MID.Temperature
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_SENSOR_GYRO_MID.Range
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_SENSOR_GYRO_MID.Scaling
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_SENSOR_GYRO_MID.DeviceID
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_SENSOR_GYRO_MID.XRaw
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_SENSOR_GYRO_MID.YRaw
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_SENSOR_GYRO_MID.ZRaw
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_SENSOR_GYRO_MID.TemperatureRaw
+  #       AIRLINER_SENSOR_MAG_MID:
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_SENSOR_MAG_MID.Timestamp
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_SENSOR_MAG_MID.ErrorCount
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_SENSOR_MAG_MID.X
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_SENSOR_MAG_MID.Y
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_SENSOR_MAG_MID.Z
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_SENSOR_MAG_MID.Range
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_SENSOR_MAG_MID.Scaling
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_SENSOR_MAG_MID.Temperature
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_SENSOR_MAG_MID.DeviceID
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_SENSOR_MAG_MID.XRaw
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_SENSOR_MAG_MID.YRaw
+  #         - /cfs/cpd/apps/airlinerlib/AIRLINER_SENSOR_MAG_MID.ZRaw
+  #       ADC_HK_TLM_MID:
+  #         - /cfs/cpd/apps/adc/ADC_HK_TLM_MID.usCmdCnt
+  #         - /cfs/cpd/apps/adc/ADC_HK_TLM_MID.usCmdErrCnt
+  #         - /cfs/cpd/apps/adc/ADC_HK_TLM_MID.Outputs[0].Raw
+  #         - /cfs/cpd/apps/adc/ADC_HK_TLM_MID.Outputs[0].Count
+  #         - /cfs/cpd/apps/adc/ADC_HK_TLM_MID.Outputs[0].Voltage
+  #         - /cfs/cpd/apps/adc/ADC_HK_TLM_MID.Outputs[0].Filtered
+  #         - /cfs/cpd/apps/adc/ADC_HK_TLM_MID.Outputs[1].Raw
+  #         - /cfs/cpd/apps/adc/ADC_HK_TLM_MID.Outputs[1].Count
+  #         - /cfs/cpd/apps/adc/ADC_HK_TLM_MID.Outputs[1].Voltage
+  #         - /cfs/cpd/apps/adc/ADC_HK_TLM_MID.Outputs[1].Filtered
+  #         - /cfs/cpd/apps/adc/ADC_HK_TLM_MID.Outputs[2].Raw
+  #         - /cfs/cpd/apps/adc/ADC_HK_TLM_MID.Outputs[2].Count
+  #         - /cfs/cpd/apps/adc/ADC_HK_TLM_MID.Outputs[2].Voltage
+  #         - /cfs/cpd/apps/adc/ADC_HK_TLM_MID.Outputs[2].Filtered
+  #         - /cfs/cpd/apps/adc/ADC_HK_TLM_MID.Outputs[3].Raw
+  #         - /cfs/cpd/apps/adc/ADC_HK_TLM_MID.Outputs[3].Count
+  #         - /cfs/cpd/apps/adc/ADC_HK_TLM_MID.Outputs[3].Voltage
+  #         - /cfs/cpd/apps/adc/ADC_HK_TLM_MID.Outputs[3].Filtered
+  #         - /cfs/cpd/apps/adc/ADC_HK_TLM_MID.Outputs[4].Raw
+  #         - /cfs/cpd/apps/adc/ADC_HK_TLM_MID.Outputs[4].Count
+  #         - /cfs/cpd/apps/adc/ADC_HK_TLM_MID.Outputs[4].Voltage
+  #         - /cfs/cpd/apps/adc/ADC_HK_TLM_MID.Outputs[4].Filtered
+  #         - /cfs/cpd/apps/adc/ADC_HK_TLM_MID.Outputs[5].Raw
+  #         - /cfs/cpd/apps/adc/ADC_HK_TLM_MID.Outputs[5].Count
+  #         - /cfs/cpd/apps/adc/ADC_HK_TLM_MID.Outputs[5].Voltage
+  #         - /cfs/cpd/apps/adc/ADC_HK_TLM_MID.Outputs[5].Filtered
+  #         - /cfs/cpd/apps/adc/ADC_HK_TLM_MID.Outputs[6].Raw
+  #         - /cfs/cpd/apps/adc/ADC_HK_TLM_MID.Outputs[6].Count
+  #         - /cfs/cpd/apps/adc/ADC_HK_TLM_MID.Outputs[6].Voltage
+  #         - /cfs/cpd/apps/adc/ADC_HK_TLM_MID.Outputs[6].Filtered
+  #         - /cfs/cpd/apps/adc/ADC_HK_TLM_MID.Outputs[7].Raw
+  #         - /cfs/cpd/apps/adc/ADC_HK_TLM_MID.StaleCountSend[0]
+  #         - /cfs/cpd/apps/adc/ADC_HK_TLM_MID.StaleCountSend[1]
+  #         - /cfs/cpd/apps/adc/ADC_HK_TLM_MID.StaleCountSend[2]
+  #         - /cfs/cpd/apps/adc/ADC_HK_TLM_MID.StaleCountSend[3]
+  #         - /cfs/cpd/apps/adc/ADC_HK_TLM_MID.StaleCountSend[4]
+  #         - /cfs/cpd/apps/adc/ADC_HK_TLM_MID.StaleCountSend[5]
+  #         - /cfs/cpd/apps/adc/ADC_HK_TLM_MID.StaleCountSend[6]
+  #         - /cfs/cpd/apps/adc/ADC_HK_TLM_MID.StaleCountSend[7]
+  #         - /cfs/cpd/apps/adc/ADC_HK_TLM_MID.StaleCountRecv[0]
+  #         - /cfs/cpd/apps/adc/ADC_HK_TLM_MID.StaleCountRecv[1]
+  #         - /cfs/cpd/apps/adc/ADC_HK_TLM_MID.StaleCountRecv[2]
+  #         - /cfs/cpd/apps/adc/ADC_HK_TLM_MID.StaleCountRecv[3]
+  #         - /cfs/cpd/apps/adc/ADC_HK_TLM_MID.StaleCountRecv[4]
+  #         - /cfs/cpd/apps/adc/ADC_HK_TLM_MID.StaleCountRecv[5]
+  #         - /cfs/cpd/apps/adc/ADC_HK_TLM_MID.StaleCountRecv[6]
+  #         - /cfs/cpd/apps/adc/ADC_HK_TLM_MID.StaleCountRecv[7]
+  #       GPIO_HK_TLM_MID:
+  #         - /cfs/cpd/apps/gpio/GPIO_HK_TLM_MID.usCmdCnt
+  #         - /cfs/cpd/apps/gpio/GPIO_HK_TLM_MID.usCmdErrCnt
+  #         - /cfs/cpd/apps/gpio/GPIO_HK_TLM_MID.usGpioArmState
+  #         - /cfs/cpd/apps/gpio/GPIO_HK_TLM_MID.usGpioState[0]
+  #         - /cfs/cpd/apps/gpio/GPIO_HK_TLM_MID.usGpioState[1]
+  #         - /cfs/cpd/apps/gpio/GPIO_HK_TLM_MID.usGpioState[2]
+  #         - /cfs/cpd/apps/gpio/GPIO_HK_TLM_MID.usGpioState[3]
+  #         - /cfs/cpd/apps/gpio/GPIO_HK_TLM_MID.usGpioState[4]
+  #         - /cfs/cpd/apps/gpio/GPIO_HK_TLM_MID.usGpioState[5]
+  #         - /cfs/cpd/apps/gpio/GPIO_HK_TLM_MID.usGpioState[6]
+  #         - /cfs/cpd/apps/gpio/GPIO_HK_TLM_MID.usGpioState[7]
+  #         - /cfs/cpd/apps/gpio/GPIO_HK_TLM_MID.usGpioArmState[0]
+  #         - /cfs/cpd/apps/gpio/GPIO_HK_TLM_MID.usGpioArmState[1]
+  #         - /cfs/cpd/apps/gpio/GPIO_HK_TLM_MID.usGpioArmState[2]
+  #         - /cfs/cpd/apps/gpio/GPIO_HK_TLM_MID.usGpioArmState[3]
+  #         - /cfs/cpd/apps/gpio/GPIO_HK_TLM_MID.usGpioArmState[4]
+  #         - /cfs/cpd/apps/gpio/GPIO_HK_TLM_MID.usGpioArmState[5]
+  #         - /cfs/cpd/apps/gpio/GPIO_HK_TLM_MID.usGpioArmState[6]
+  #         - /cfs/cpd/apps/gpio/GPIO_HK_TLM_MID.usGpioArmState[7]
+  #         - /cfs/cpd/apps/gpio/GPIO_HK_TLM_MID.mask
+  #         - /cfs/cpd/apps/gpio/GPIO_HK_TLM_MID.direction
+  #         - /cfs/cpd/apps/gpio/GPIO_HK_TLM_MID.readCount
+  #       GPIO_STATUS_TLM_MID:
+  #         - /cfs/cpd/apps/gpio/GPIO_STATUS_TLM_MID.Status
+  #         - /cfs/cpd/apps/gpio/GPIO_STATUS_TLM_MID.ReadCount
+  #       NAV_HK_TLM_MID:
+  #         - /cfs/cpd/apps/nav/NAV_HK_TLM_MID.usCmdCnt
+  #         - /cfs/cpd/apps/nav/NAV_HK_TLM_MID.usCmdErrCnt
+  #         - /cfs/cpd/apps/nav/NAV_HK_TLM_MID.NavState
+  #         - /cfs/cpd/apps/nav/NAV_HK_TLM_MID.RtlState
+  #         - /cfs/cpd/apps/nav/NAV_HK_TLM_MID.WaypointYawReached
+  #         - /cfs/cpd/apps/nav/NAV_HK_TLM_MID.RtlForceDescentExecuting
+  #         - /cfs/cpd/apps/nav/NAV_HK_TLM_MID.RtlForceDescentCompleted
+  #         - /cfs/cpd/apps/nav/NAV_HK_TLM_MID.MissionItemReached
+  #         - /cfs/cpd/apps/nav/NAV_HK_TLM_MID.WaitingForATP
+  #         - /cfs/cpd/apps/nav/NAV_HK_TLM_MID.ActionStart
+  #         - /cfs/cpd/apps/nav/NAV_HK_TLM_MID.ReleaseDelayAt
+  #         - /cfs/cpd/apps/nav/NAV_HK_TLM_MID.RemainingDelay
+  #         - /cfs/cpd/apps/nav/NAV_HK_TLM_MID.WaypointPositionReached
+  #         - /cfs/cpd/apps/nav/NAV_HK_TLM_MID.AutoMissionItemIndex
+  #         - /cfs/cpd/apps/nav/NAV_HK_TLM_MID.MissionID
+
+
+  #       FPC_HK_TLM_MID:
+  #         - /cfs/cpd/apps/fpc/FPC_HK_TLM_MID.l1_state._lateral_accel
+  #         - /cfs/cpd/apps/fpc/FPC_HK_TLM_MID.l1_state._L1_distance
+  #         - /cfs/cpd/apps/fpc/FPC_HK_TLM_MID.l1_state._circle_mode
+  #         - /cfs/cpd/apps/fpc/FPC_HK_TLM_MID.l1_state._nav_bearing
+  #         - /cfs/cpd/apps/fpc/FPC_HK_TLM_MID.l1_state._bearing_error
+  #         - /cfs/cpd/apps/fpc/FPC_HK_TLM_MID.l1_state._crosstrack_error
+  #         - /cfs/cpd/apps/fpc/FPC_HK_TLM_MID.l1_state._target_bearing
+  #         - /cfs/cpd/apps/fpc/FPC_HK_TLM_MID.l1_state._heading_omega
+  #         - /cfs/cpd/apps/fpc/FPC_HK_TLM_MID.l1_state._roll_lim_rad
+  #         - /cfs/cpd/apps/nav/NAV_HK_TLM_MID.WaypointPositionReached
+  #         - /cfs/cpd/apps/nav/NAV_HK_TLM_MID.AutoMissionItemIndex
+  #         - /cfs/cpd/apps/fpc/FPC_HK_TLM_MID.l1_state.current_nav_roll
+
+  #       VM_HK_TLM_MID:
+  #         - /cfs/cpd/apps/vm/VM_HK_TLM_MID.usCmdCnt
+  #         - /cfs/cpd/apps/vm/VM_HK_TLM_MID.usCmdErrCnt
+  #         - /cfs/cpd/apps/vm/VM_HK_TLM_MID.ArmingState
+  #         - /cfs/cpd/apps/vm/VM_HK_TLM_MID.NavState
+  #         - /cfs/cpd/apps/vm/VM_HK_TLM_MID.WakeupCount
+  #         - /cfs/cpd/apps/vm/VM_HK_TLM_MID.BatteryStatusMsgCount
+  #         - /cfs/cpd/apps/vm/VM_HK_TLM_MID.TelemetryStatusMsgCount
+  #         - /cfs/cpd/apps/vm/VM_HK_TLM_MID.SubsystemInfoMsgCount
+  #         - /cfs/cpd/apps/vm/VM_HK_TLM_MID.VehicleAttitudeMsgCount
+  #         - /cfs/cpd/apps/vm/VM_HK_TLM_MID.VehicleLocalPositionMsgCount
+  #         - /cfs/cpd/apps/vm/VM_HK_TLM_MID.VehicleLandDetectedMsgCount
+  #         - /cfs/cpd/apps/vm/VM_HK_TLM_MID.MissionResultMsgCount
+  #         - /cfs/cpd/apps/vm/VM_HK_TLM_MID.ManualControlSetpointMsgCount
+  #         - /cfs/cpd/apps/vm/VM_HK_TLM_MID.PositionSetpointTripletMsgCount
+  #         - /cfs/cpd/apps/vm/VM_HK_TLM_MID.SafetyMsgCount
+  #         - /cfs/cpd/apps/vm/VM_HK_TLM_MID.SensorCorrectionMsgCount
+  #         - /cfs/cpd/apps/vm/VM_HK_TLM_MID.SensorCombinedMsgCount
+  #         - /cfs/cpd/apps/vm/VM_HK_TLM_MID.VehicleCommandMsgCount
+  #         - /cfs/cpd/apps/vm/VM_HK_TLM_MID.VehicleGlobalPositionMsgCount
+  #         - /cfs/cpd/apps/vm/VM_HK_TLM_MID.VehicleGpsPositionMsgCount
+  #         - /cfs/cpd/apps/vm/VM_HK_TLM_MID.VehicleControlModeMsgCount
+  #         - /cfs/cpd/apps/vm/VM_HK_TLM_MID.NotInitialized
+  #         - /cfs/cpd/apps/vm/VM_HK_TLM_MID.BootTimestamp
+  #         - /cfs/cpd/apps/vm/VM_HK_TLM_MID.StatusFlags.SensorsInitialized
+  #         - /cfs/cpd/apps/vm/VM_HK_TLM_MID.StatusFlags.ReturnToHomeSet
+  #         - /cfs/cpd/apps/vm/VM_HK_TLM_MID.StatusFlags.HomePositionValid
+  #         - /cfs/cpd/apps/vm/VM_HK_TLM_MID.StatusFlags.UsbPowerConnected
+  #         - /cfs/cpd/apps/vm/VM_HK_TLM_MID.StatusFlags.RcSignalFoundOnce
+  #         - /cfs/cpd/apps/vm/VM_HK_TLM_MID.StatusFlags.RcSignalLostModeIsCmded
+  #         - /cfs/cpd/apps/vm/VM_HK_TLM_MID.StatusFlags.RcInputIsTemporarilyBlocked
+  #         - /cfs/cpd/apps/vm/VM_HK_TLM_MID.LocalPositionIsValid
+  #         - /cfs/cpd/apps/vm/VM_HK_TLM_MID.PrevLanded
+  #         - /cfs/cpd/apps/vm/VM_HK_TLM_MID.PrevInFlight
+  #         - /cfs/cpd/apps/vm/VM_HK_TLM_MID.StickOffCounter
+  #         - /cfs/cpd/apps/vm/VM_HK_TLM_MID.StickOnCounter
+  #         - /cfs/cpd/apps/vm/VM_HK_TLM_MID.LastSpManArmSwitch
+  #         - /cfs/cpd/apps/vm/VM_HK_TLM_MID.LowBatteryVoltageActionsDone
+  #         - /cfs/cpd/apps/vm/VM_HK_TLM_MID.CriticalBatteryVoltageActionsDone
+  #         - /cfs/cpd/apps/vm/VM_HK_TLM_MID.EmergencyBatteryVoltageActionsDone
+  #         - /cfs/cpd/apps/vm/VM_HK_TLM_MID.RCSignalLostTimestamp
+  #         - /cfs/cpd/apps/vm/VM_HK_TLM_MID.ArmingStateChanged
+  #         - /cfs/cpd/apps/vm/VM_HK_TLM_MID.PreviousModes.inPosCtl
+  #         - /cfs/cpd/apps/vm/VM_HK_TLM_MID.PreviousModes.inRtl
+  #         - /cfs/cpd/apps/vm/VM_HK_TLM_MID.PreviousModes.inLoiter
+  #         - /cfs/cpd/apps/vm/VM_HK_TLM_MID.PreviousModes.inManual
+  #         - /cfs/cpd/apps/vm/VM_HK_TLM_MID.PreviousModes.inTakeoff
+  #         - /cfs/cpd/apps/vm/VM_HK_TLM_MID.PreviousModes.inAltCtl
+  #       FAC_ALPHA_CONTROLLER_MID:
+  #           - /cfs/cpd/apps/fac/FAC_ALPHA_CONTROLLER_MID.ExcursionIntegrator
+  #           - /cfs/cpd/apps/fac/FAC_ALPHA_CONTROLLER_MID.FW_VERT_MDDE
+  #           - /cfs/cpd/apps/fac/FAC_ALPHA_CONTROLLER_MID.ControlData.roll
+  #           - /cfs/cpd/apps/fac/FAC_ALPHA_CONTROLLER_MID.ControlData.pitch
+  #           - /cfs/cpd/apps/fac/FAC_ALPHA_CONTROLLER_MID.ControlData.yaw
+  #           - /cfs/cpd/apps/fac/FAC_ALPHA_CONTROLLER_MID.ControlData.body_x_rate
+  #           - /cfs/cpd/apps/fac/FAC_ALPHA_CONTROLLER_MID.ControlData.body_y_rate
+  #           - /cfs/cpd/apps/fac/FAC_ALPHA_CONTROLLER_MID.ControlData.body_z_rate
+  #           - /cfs/cpd/apps/fac/FAC_ALPHA_CONTROLLER_MID.ControlData.roll_setpoint
+  #           - /cfs/cpd/apps/fac/FAC_ALPHA_CONTROLLER_MID.ControlData.pitch_setpoint
+  #           - /cfs/cpd/apps/fac/FAC_ALPHA_CONTROLLER_MID.ControlData.yaw_setpoint
+  #           - /cfs/cpd/apps/fac/FAC_ALPHA_CONTROLLER_MID.ControlData.roll_rate_setpoint
+  #           - /cfs/cpd/apps/fac/FAC_ALPHA_CONTROLLER_MID.ControlData.pitch_rate_setpoint
+  #           - /cfs/cpd/apps/fac/FAC_ALPHA_CONTROLLER_MID.ControlData.yaw_rate_setpoint
+  #           - /cfs/cpd/apps/fac/FAC_ALPHA_CONTROLLER_MID.ControlData.airspeed_min
+  #           - /cfs/cpd/apps/fac/FAC_ALPHA_CONTROLLER_MID.ControlData.airspeed_max
+  #           - /cfs/cpd/apps/fac/FAC_ALPHA_CONTROLLER_MID.ControlData.airspeed
+  #           - /cfs/cpd/apps/fac/FAC_ALPHA_CONTROLLER_MID.ControlData.scaler
+  #           - /cfs/cpd/apps/fac/FAC_ALPHA_CONTROLLER_MID.ControlData.groundspeed
+  #           - /cfs/cpd/apps/fac/FAC_ALPHA_CONTROLLER_MID.ControlData.lock_integrator
+  #           - /cfs/cpd/apps/fac/FAC_ALPHA_CONTROLLER_MID.ControlData.integrator_constrained
+  #           - /cfs/cpd/apps/fac/FAC_ALPHA_CONTROLLER_MID.ControlData._bodyrate_setpoint
+  #           - /cfs/cpd/apps/fac/FAC_ALPHA_CONTROLLER_MID.ControlData._rate_error
+  #           - /cfs/cpd/apps/fac/FAC_ALPHA_CONTROLLER_MID.ControlData.id
+  #           - /cfs/cpd/apps/fac/FAC_ALPHA_CONTROLLER_MID.ControlData._integrator
+  #           - /cfs/cpd/apps/fac/FAC_ALPHA_CONTROLLER_MID.ControlData._roll_ctrl_reset_integrator_count
+  #           - /cfs/cpd/apps/fac/FAC_ALPHA_CONTROLLER_MID.ControlData._yaw_ctrl_reset_integrator_count
+  #           - /cfs/cpd/apps/fac/FAC_ALPHA_CONTROLLER_MID.ControlData._pitch_ctrl_reset_integrator_count
+  #           - /cfs/cpd/apps/fac/FAC_ALPHA_CONTROLLER_MID.ControlData._integrator_max
+  #           - /cfs/cpd/apps/fac/FAC_ALPHA_CONTROLLER_MID.ControlData._last_output
+  #           - /cfs/cpd/apps/fac/FAC_ALPHA_CONTROLLER_MID.ControlData.windup_count
+  #           - /cfs/cpd/apps/fac/FAC_ALPHA_CONTROLLER_MID.ControlData._k_i
+  #       VN310_CUSTOM_HK_TLM_MID:
+  #         - /cfs/cpd/apps/vn310/VN310_CUSTOM_HK_TLM_MID.TransmitInterrupts
+  #         - /cfs/cpd/apps/vn310/VN310_CUSTOM_HK_TLM_MID.ReceiveInterrupts
+  #         - /cfs/cpd/apps/vn310/VN310_CUSTOM_HK_TLM_MID.StatusInterrupts
+  #         - /cfs/cpd/apps/vn310/VN310_CUSTOM_HK_TLM_MID.ModemInterrupts
+  #         - /cfs/cpd/apps/vn310/VN310_CUSTOM_HK_TLM_MID.CharactersTransmitted
+  #         - /cfs/cpd/apps/vn310/VN310_CUSTOM_HK_TLM_MID.CharactersReceived
+  #         - /cfs/cpd/apps/vn310/VN310_CUSTOM_HK_TLM_MID.ReceiveOverrunErrors
+  #         - /cfs/cpd/apps/vn310/VN310_CUSTOM_HK_TLM_MID.ReceiveParityErrors
+  #         - /cfs/cpd/apps/vn310/VN310_CUSTOM_HK_TLM_MID.ReceiveFramingErrors
+  #         - /cfs/cpd/apps/vn310/VN310_CUSTOM_HK_TLM_MID.ReceiveBreakDetected
+  #         - /cfs/cpd/apps/vn310/VN310_CUSTOM_HK_TLM_MID.LastCmdCode
+  #         - /cfs/cpd/apps/vn310/VN310_CUSTOM_HK_TLM_MID.LastCmdResponse
+  #         - /cfs/cpd/apps/vn310/VN310_CUSTOM_HK_TLM_MID.RxFrameID
+  #         - /cfs/cpd/apps/vn310/VN310_CUSTOM_HK_TLM_MID.BytesInBuffer
+  #         - /cfs/cpd/apps/vn310/VN310_CUSTOM_HK_TLM_MID.FreshCount
+  #         - /cfs/cpd/apps/vn310/VN310_CUSTOM_HK_TLM_MID.CopyCmdPipeErrorCount
+  #         - /cfs/cpd/apps/vn310/VN310_CUSTOM_HK_TLM_MID.CopyRspPipeErrorCount
+  #         - /cfs/cpd/apps/vn310/VN310_CUSTOM_HK_TLM_MID.NewDataCount
+  #         - /cfs/cpd/apps/vn310/VN310_CUSTOM_HK_TLM_MID.AcknowledgedCount
+  #         - /cfs/cpd/apps/vn310/VN310_CUSTOM_HK_TLM_MID.UnacknowledgedCount
+  #         - /cfs/cpd/apps/vn310/VN310_CUSTOM_HK_TLM_MID.CommitErrorCount
+  #         - /cfs/cpd/apps/vn310/VN310_CUSTOM_HK_TLM_MID.GetMsgBufferForWriteErrorCount
+  #         - /cfs/cpd/apps/vn310/VN310_CUSTOM_HK_TLM_MID.SendPendingCount
+  #         - /cfs/cpd/apps/vn310/VN310_CUSTOM_HK_TLM_MID.BufferSentCount
+  #         - /cfs/cpd/apps/vn310/VN310_CUSTOM_HK_TLM_MID.ConfigCommandCount
+  #         - /cfs/cpd/apps/vn310/VN310_CUSTOM_HK_TLM_MID.QueueCmdCount
+  #         - /cfs/cpd/apps/vn310/VN310_CUSTOM_HK_TLM_MID.UnknownCommandCount
+  #         - /cfs/cpd/apps/vn310/VN310_CUSTOM_HK_TLM_MID.UnknownMsgIDCount
+  #         - /cfs/cpd/apps/vn310/VN310_CUSTOM_HK_TLM_MID.OverflowCount
+        
+
+dataLinks:
+  # - name: sys-logs
+  #   class: com.windhoverlabs.yamcs.cfs.sys_log.CfsSysLogPlugin
+  #   stream: tm_realtime
+  #   buckets: ["cfdpDown"]
+  #   CFE_FS_ES_SYSLOG_SUBTYPE: 2
+  #   CFE_ES_SYSTEM_LOG_SIZE: 3072  # Ignored when readUntilEOF is true
+  #   readUntilEOF: false
+  #   sysLogFileConfig:
+  #     mode: APPEND # APPEND, REPLACE, INACTIVE
+  #     outputFile: cfe_es_sys_log.txt
+  #     sysLogBucket: "cfdpDown"
+
+  # - name: err-logs
+  #   class: com.windhoverlabs.yamcs.cfs.err_log.CfsErrLogPlugin
+  #   stream: tm_realtime
+  #   buckets: ["cfdpDown"]
+  #   CFE_FS_ES_ERLOG_SUBTYPE: 1
+  #   CFE_FS_ES_ER_ENTRY_SIZE: 264  # sizeof(CFE_ES_ERLog_t) 
+  #   CFE_FS_ES_ERLOG_CONTEXT_ARRAY_SIZE: 32
+  #   # CFE_FS_ES_ERLOG_SIZE = CFE_ES_ER_LOG_ENTRIES * sizeof(CFE_ES_ERLog_t) 
+  #   CFE_FS_ES_ERLOG_SIZE: 5280  # Ignored when readUntilEOF is true
+  #   readUntilEOF: false
+  #   errLogFileConfig:
+  #     mode: APPEND # APPEND, REPLACE, INACTIVE
+  #     outputFile: cfe_es_err_log.csv
+  #     errLogBucket: "cfdpDown"
+      
+  # - name: ds-logs
+  #   class: com.windhoverlabs.yamcs.cfs.ds.CfsDsPlugin
+  #   stream: tm_realtime
+  #   buckets: ["cfdpDown"]
+  #   DS_FILE_HDR_SUBTYPE: 12346
+  #   DS_TOTAL_FNAME_BUFSIZE: 64
+  #   ignoreInitial: false
+  #   pollingPeriod: 5 # seconds
+  #   packetPreprocessorClassName: org.yamcs.tctm.cfs.CfsPacketPreprocessor
+  #   packetPreprocessorArgs:
+  #     byteOrder: LITTLE_ENDIAN
+  #     timestampFormat: CFE_SB_TIME_32_16_SUBS
+  #     timeEncoding:
+  #       useLocalGenerationTime: false
+  #       epoch: CUSTOM
+  #       epochUTC: "1970-01-01T00:00:00Z"
+  #       timeIncludesLeapSeconds: true
+
+  # - name: evs-logs
+  #   class: com.windhoverlabs.yamcs.cfs.evs.CfsEvsPlugin
+  #   eventStream: events_realtime
+  #   stream: tm_realtime
+  #   buckets: ["cfdpDown"]
+  #   EVS_FILE_HDR_SUBTYPE: 16 
+  #   # DS_TOTAL_FNAME_BUFSIZE: 64
+  #   csvConfig:
+  #     mode: INACTIVE # APPEND, REPLACE, INACTIVE
+  #     outputFile: events_dump.csv
+  #     byteOrder: LITTLE_ENDIAN
+  #     appNameMax: 40
+  #     eventMsgMax: 122
+  #   packetPreprocessorClassName: org.yamcs.tctm.cfs.CfsPacketPreprocessor
+  #   packetPreprocessorArgs:
+  #     byteOrder: LITTLE_ENDIAN
+  #     timestampFormat: CFE_SB_TIME_32_16_SUBS
+  #     timeEncoding:
+  #       useLocalGenerationTime: false
+  #       epoch: CUSTOM
+  #       epochUTC: "1970-01-01T00:00:00Z"
+  #       timeIncludesLeapSeconds: true
+
+  # - name: ForeFlight
+  #   class: com.windhoverlabs.yamcs.gdl90.GDL90Link
+  #   heartbeatStream: "heartbeat"
+  #   ownShipReportStreamName: "ownshipReport"
+  #   ownShipGeoAltitudeStreamName: "ownShipGeoAltitude"
+  #   ForeFlightIDStreamName: "ForeFlightIDs"
+  #   AHRSStreamName: "AHRS"
+  #   DataSource: PV
+  #   heartbeatRate: 100 #HZ
+  #   ownShipReportRate: 100 #HZ
+  #   ownShipGeoAltitudeRate: 100 #HZ
+  #   AHRSRate: 100 #HZ
+  #   1HZ_Messages: [0x0993, 0x098b]
+  #   5HZ_Messages: [0x098d]
+  #   gdl90Devices:
+  #     # - gdl90_host: "172.16.100.93"
+  #     #   gdl90_port: 4000
+  #     # - gdl90_host: "172.16.100.132"
+  #     #   gdl90_port: 4000
+  #     - gdl90_host: "172.16.100.116"
+  #       gdl90_port: 4000
+  #       blackListed: true
+  #   yamcsHost: http://127.0.0.1
+  #   yamcsPort: 8090
+
+  #   pvConfig:
+  #     AHRS_Mode: QT # [YPR, QT]
+  #     pvMap:
+  #       Altitude: "/cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_GLOBAL_POSITION_MID.Alt"
+  #       Latitude: "/cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_GLOBAL_POSITION_MID.Lat"
+  #       Longitude: "/cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_GLOBAL_POSITION_MID.Lon"
+  #       # AHRS:
+  #       #   Roll: "/cfs/cpd/apps/vn310/Roll"
+  #       #   Pitch: "/cfs/cpd/apps/vn310/Pitch"
+  #       #   AHRS_Heading: "/cfs/cpd/apps/vn310/Yaw"
+  #       #   # Qt_PV?
+  #       #   mode: QUATERNION
+  #       # True_AHRS_Heading: "/cfs/cpd/apps/vn310/Yaw"
+  #       # Magnetic_AHRS_Heading: "/cfs/cpd/apps/vn310/Yaw"
+  #       Roll: "/cfs/cpd/apps/vn310/VN310_HK_TLM_MID.AttitudeData.Roll"
+  #       Pitch: "/cfs/cpd/apps/vn310/VN310_HK_TLM_MID.AttitudeData.Pitch"
+  #       AHRS_Heading: "/cfs/cpd/apps/vn310/VN310_HK_TLM_MID.AttitudeData.Yaw"
+  #       HorizontalSpeed: "/cfs/cpd/apps/fac/FAC_ALPHA_CONTROLLER_MID.ControlData.groundspeed"
+  #       Qt: "/cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_ATTITUDE_MID.Q"
+  #       NorthVel: "/cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_GLOBAL_POSITION_MID.VelN"
+  #       EastVel: "/cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_GLOBAL_POSITION_MID.VelE"
+  #       DownVel: "/cfs/cpd/apps/airlinerlib/AIRLINER_VEHICLE_GLOBAL_POSITION_MID.VelD"
+
+  #     # True_AHRS_Heading: "/cfs/cpd/apps/vn310/Yaw"
+  #     # Magnetic_AHRS_Heading: "/cfs/cpd/apps/vn310/Yaw"
+  #   AHRSHeadingType: "TRUE_HEADING"  
+         
+  # - name: tc_udp
+  #   class: org.yamcs.tctm.UdpTcDataLink
+  #   stream: tc_realtime
+  #   host: 127.0.0.1
+  #   port: 5010
+  #   enabledAtStartup: true
+  #   commandPostprocessorClassName: org.yamcs.tctm.cfs.CfsCommandPostprocessor
+  #   commandPostprocessorArgs:
+  #     swapChecksumFc: true
+
+  # - name: tm_udp
+  #   class: com.windhoverlabs.yamcs.tctm.UdpTmDataLink
+  #   stream: tm_realtime
+  #   port: 5011
+  #   enabledAtStartup: true
+  #   maxLength: 32768 #32KB is the default for CCSDS
+  #   rcvBufferSize: 100000000 # 100MB
+  #   packetPreprocessorClassName: org.yamcs.tctm.cfs.CfsPacketPreprocessor
+  #   packetPreprocessorArgs:
+  #     checkSequence: false
+  #     byteOrder: LITTLE_ENDIAN
+  #     useLocalGenerationTime: false
+  #     #errorDetection:
+  #     #tcoService:
+  #     timestampFormat: CFE_SB_TIME_32_16_SUBS
+  #     checkSequence: false
+  #     timeEncoding:
+  #       epoch: CUSTOM
+  #       epochUTC: "1970-01-01T00:00:00Z"
+  #       timeIncludesLeapSeconds: true
+  
+  # - name: proto_param_link
+  #   # class: org.yamcs.tctm.UdpParameterDataLink
+  #   class: com.windhoverlabs.yamcs.tctm.UdpParameterDataLink
+  #   #This stream MUST be of type "param" otherwise the protobuf/json interface will not match.
+  #   stream: pp_realtime
+  #   port: 5060
+  #   json: false
+
+  - name: tm_ocpua
+    class: com.windhoverlabs.yamcs.opcua.OPCUALink
+    # stream: tm_realtime
+    opcuaStream: "opcua_params"
+    # endpoint_url: "opc.tcp://localhost:4840/"
+    endpointUrl: "opc.tcp://139.169.156.29:5011/lcoFwxServer"
+    discoveryUrl: "opc.tcp://139.169.156.29:5011/lcoFwxServer"
+    parametersNamespace: "/instruments/tvac"
+    queryAllNodesAtStartup: true # defaults to false
+    
+    # i 	Numeric (UInteger)
+    # s 	String (String)
+    # g 	Guid (Guid)
+    # b 	Opaque (ByteString)
+
+    nodePaths:
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:001,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:001,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:001,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:001,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:001,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:002,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:002,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:002,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:002,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:002,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:003,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:003,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:003,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:003,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:003,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:004,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:004,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:004,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:004,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:004,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:005,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:005,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:005,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:005,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:005,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:006,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:006,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:006,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:006,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:006,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:007,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:007,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:007,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:007,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:007,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:008,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:008,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:008,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:008,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:008,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:009,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:009,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:009,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:009,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:009,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:010,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:010,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:010,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:010,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:010,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:011,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:011,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:011,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:011,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:011,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:012,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:012,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:012,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:012,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:012,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:013,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:013,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:013,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:013,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:013,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:014,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:014,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:014,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:014,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:014,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:015,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:015,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:015,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:015,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:015,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:016,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:016,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:016,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:016,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:016,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:017,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:017,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:017,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:017,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:017,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:018,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:018,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:018,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:018,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:018,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:019,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:019,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:019,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:019,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:019,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:020,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:020,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:020,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:020,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:020,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:021,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:021,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:021,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:021,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:021,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:022,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:022,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:022,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:022,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:022,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:023,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:023,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:023,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:023,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:023,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:024,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:024,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:024,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:024,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:024,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:025,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:025,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:025,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:025,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:025,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:026,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:026,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:026,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:026,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:026,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:027,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:027,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:027,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:027,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:027,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:028,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:028,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:028,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:028,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:028,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:029,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:029,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:029,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:029,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:029,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:030,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:030,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:030,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:030,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:030,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:031,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:031,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:031,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:031,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:031,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:032,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:032,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:032,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:032,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:032,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:033,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:033,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:033,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:033,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:033,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:034,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:034,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:034,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:034,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:034,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:035,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:035,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:035,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:035,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:035,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:036,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:036,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:036,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:036,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:036,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:037,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:037,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:037,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:037,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:037,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:038,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:038,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:038,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:038,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:038,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:039,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:039,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:039,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:039,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:039,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:040,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:040,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:040,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:040,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:040,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:041,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:041,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:041,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:041,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:041,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:042,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:042,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:042,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:042,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:042,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:043,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:043,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:043,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:043,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:043,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:044,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:044,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:044,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:044,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:044,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:045,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:045,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:045,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:045,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:045,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:046,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:046,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:046,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:046,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:046,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:047,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:047,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:047,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:047,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:047,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:048,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:048,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:048,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:048,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:048,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:049,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:049,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:049,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:049,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:049,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:050,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:050,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:050,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:050,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:050,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:051,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:051,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:051,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:051,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:051,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:052,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:052,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:052,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:052,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:052,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:053,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:053,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:053,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:053,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:053,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:054,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:054,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:054,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:054,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:054,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:055,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:055,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:055,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:055,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:055,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:056,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:056,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:056,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:056,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:056,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:057,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:057,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:057,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:057,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:057,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:058,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:058,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:058,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:058,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:058,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:059,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:059,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:059,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:059,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:059,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:060,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:060,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:060,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:060,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:060,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:061,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:061,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:061,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:061,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:061,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:062,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:062,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:062,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:062,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:062,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:063,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:063,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:063,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:063,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:063,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:064,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:064,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:064,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:064,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:064,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:065,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:065,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:065,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:065,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:065,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:066,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:066,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:066,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:066,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:066,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:067,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:067,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:067,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:067,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:067,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:068,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:068,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:068,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:068,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:068,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:069,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:069,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:069,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:069,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:069,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:070,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:070,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:070,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:070,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:070,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:071,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:071,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:071,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:071,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:071,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:072,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:072,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:072,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:072,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:072,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:073,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:073,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:073,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:073,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:073,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:074,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:074,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:074,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:074,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:074,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:075,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:075,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:075,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:075,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:075,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:076,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:076,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:076,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:076,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:076,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:077,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:077,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:077,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:077,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:077,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:078,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:078,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:078,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:078,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:078,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:079,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:079,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:079,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:079,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:079,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:080,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:080,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:080,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:080,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:080,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:081,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:081,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:081,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:081,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:081,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:082,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:082,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:082,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:082,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:082,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:083,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:083,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:083,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:083,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:083,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:084,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:084,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:084,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:084,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:084,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:085,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:085,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:085,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:085,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:085,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:086,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:086,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:086,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:086,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:086,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:087,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:087,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:087,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:087,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:087,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:088,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:088,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:088,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:088,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:088,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:089,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:089,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:089,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:089,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:089,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:090,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:090,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:090,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:090,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:090,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:091,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:091,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:091,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:091,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:091,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:092,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:092,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:092,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:092,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:092,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:093,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:093,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:093,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:093,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:093,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:094,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:094,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:094,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:094,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:094,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:095,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:095,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:095,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:095,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:095,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:096,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:096,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:096,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:096,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:096,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:097,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:097,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:097,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:097,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:097,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:098,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:098,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:098,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:098,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:098,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:099,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:099,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:099,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:099,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:099,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:100,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:100,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:100,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:100,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:100,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:101,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:101,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:101,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:101,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:101,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:102,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:102,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:102,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:102,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:102,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:103,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:103,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:103,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:103,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:103,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:104,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:104,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:104,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:104,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:104,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:105,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:105,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:105,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:105,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:105,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:106,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:106,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:106,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:106,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:106,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:107,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:107,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:107,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:107,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:107,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:108,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:108,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:108,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:108,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:108,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:109,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:109,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:109,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:109,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:109,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:110,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:110,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:110,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:110,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:110,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:111,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:111,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:111,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:111,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:111,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:112,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:112,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:112,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:112,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:112,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:113,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:113,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:113,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:113,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:113,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:114,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:114,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:114,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:114,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:114,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:115,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:115,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:115,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:115,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:115,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:116,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:116,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:116,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:116,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:116,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:117,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:117,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:117,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:117,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:117,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:118,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:118,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:118,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:118,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:118,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:119,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:119,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:119,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:119,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:119,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:120,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:120,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:120,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:120,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:120,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:121,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:121,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:121,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:121,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:121,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:122,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:122,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:122,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:122,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:122,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:123,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:123,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:123,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:123,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:123,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:124,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:124,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:124,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:124,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:124,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:125,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:125,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:125,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:125,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:125,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:126,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:126,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:126,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:126,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:126,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:127,2:DE"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:127,2:EU"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:127,2:RD"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:127,2:SRC"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+      - path: "0:Objects,2:OPCUA_SIM,2:Channel,2:127,2:UN"
+        rootNodeID: #Link starts browsing at this node
+          namespaceIndex: 0
+          identifierType: Numeric
+          identifier: "85"  #84 is Root
+
+    rootNodeID: #Link starts browsing at this node
+      namespaceIndex: 14
+      # identifier: "s=ac:DARAC/JSC/EA/EC/EC4/B32/ChA_PXIe_06/Channel/001/DE"
+      # "ns=2;s=HelloWorld/MyObject"
+      identifierType: String
+      # identifier: "HelloWorld"  #84 is Root
+      # 0:Objects,2:HelloWorld,2:MyObject,2:Bar
+      # 0:Objects,2:HelloWorld,2:ArrayTypes
+      # ns=2;s=HelloWorld/MyObject
+      # ns=2;s=HelloWorld/MyObject/2:Bar
+      identifier: "s=O=ac:DARAC/JSC/EA/EC/EC4/B32/ChA_PXIe_06/Channel/001/;B=ac:DARAC/JSC/EA/EC/EC4/B32/ChA_PXIe_06/Channel/001/;S=001;"  #84 is Root
+
+
+
+mdb:
+    # Configuration of the active loaders
+    # Valid loaders are: sheet, xtce or fully qualified name of the class
+    - type: "xtce"
+      spec: "mdb/cfs-ccsds.xml"
+    # - type: "xtce"
+    #   spec: "mdb/opcua_tvac_xtce.xml"
+      
+      # subLoaders:
+      # - type: "xtce"
+      #   spec: "mdb/ppd.xml"
+      # - type: "xtce"
+      #   spec: "mdb/cpd.xml"
+
+# Configuration for streams created at server startup
+streamConfig:
+  tm:
+    - name: "tm_realtime"
+    - name: "tm_dump"
+  cmdHist: ["cmdhist_realtime", "cmdhist_dump"]
+  event: ["events_realtime", "events_dump"]
+  param: ["pp_realtime", "sys_param", "proc_param", "opcua_params"]
+  parameterAlarm: ["alarms_realtime"]
+  tc: ["tc_realtime"]
+  sqlFile: "etc/extra_streams.sql"
+
