@@ -208,9 +208,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
   private static final Logger internalLogger = LoggerFactory.getLogger(OPCUALink.class.getName());
 
   private int rootNamespaceIndex;
-
   private String rootIdentifier; // Relative to the rootNamespaceIndex
-
   private IdType rootIdentifierType; // Relative to the rootNamespaceIndex
 
   /**
@@ -337,7 +335,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     this.discoverURL = config.getString("discoveryUrl");
 
     this.parametersNamespace = config.getString("parametersNamespace");
-
     this.queryAllNodesAtStartup = config.getBoolean("queryAllNodesAtStartup", false);
 
     Map<Object, Object> root = config.getMap("rootNodeID");
@@ -435,7 +432,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
       subscribeToEvents(client);
 
     } catch (Exception e) {
-      // TODO Auto-generated catch block
       e.printStackTrace();
       return;
     }
@@ -443,7 +439,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
       currentOPCUAStatus = OPCUAStatus.OPCUA_INIT_DATA_SUBSCRIPTION;
       createOPCUASubscriptions();
     } catch (Exception e) {
-      // TODO Auto-generated catch block
       e.printStackTrace();
     }
   }
@@ -573,7 +568,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
     Set<NodeId> nodeSet = new HashSet<NodeId>();
     /**
-     * FIXME:This is super inefficient... The reason we collect these nodeIDs in a set is because
+     * NOTE:This is super inefficient... The reason we collect these nodeIDs in a set is because
      * otherwise we will have redundant subscription(s) since there is more than 1 attribute per
      * nodeID given how nodeIDToParamsMap is designed
      */
@@ -596,7 +591,10 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
               VariableParam p = nodeIDToParamsMap.get(new NodeIDAttrPair(nId, attr));
 
               if (p.getParameterType() == null) {
-                // FIXME:Add log message
+                internalLogger.warn(
+                    "{} ignored since it does not have a Parameter type",
+                    p,
+                    Character.toString(NameDescription.PATH_SEPARATOR));
                 continue;
               }
 
@@ -618,8 +616,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
                   {
                     double value = 0;
                     if (node.readAttribute(attr).getValue().isNull()) {
-                      //                      value = null;
-                      //                    	FIXME:Log warning
+                      internalLogger.warn("node {} has a Null variant.", node);
                     } else {
                       value = (double) node.readAttribute(attr).getValue().getValue();
                     }
@@ -632,8 +629,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
                   {
                     float value = 0;
                     if (node.readAttribute(attr).getValue().isNull()) {
-                      //                      value = null;
-                      //                    	FIXME:Log warning
+                      internalLogger.warn("node {} has a Null variant.", node);
                     } else {
                       value = (float) node.readAttribute(attr).getValue().getValue();
                     }
@@ -646,8 +642,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
                   {
                     int value = 0;
                     if (node.readAttribute(attr).getValue().isNull()) {
-                      //                      value = null;
-                      //                    	FIXME:Log warning
+                      internalLogger.warn("node {} has a Null variant.", node);
                     } else {
                       value = (int) node.readAttribute(attr).getValue().getValue();
                     }
@@ -660,8 +655,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
                   {
                     long value = 0;
                     if (node.readAttribute(attr).getValue().isNull()) {
-                      //                      value = null;
-                      //                    	FIXME:Log warning
+                      internalLogger.warn("node {} has a Null variant.", node);
                     } else {
                       value = (long) node.readAttribute(attr).getValue().getValue();
                     }
@@ -687,8 +681,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
                   {
                     long value = 0;
                     if (node.readAttribute(attr).getValue().isNull()) {
-                      //                      value = null;
-                      //                    	FIXME:Log warning
+                      internalLogger.warn("node {} has a Null variant.", node);
                     } else {
                       value = (long) node.readAttribute(attr).getValue().getValue();
                     }
@@ -701,8 +694,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
                   {
                     long value = 0;
                     if (node.readAttribute(attr).getValue().isNull()) {
-                      //                      value = null;
-                      //                    	FIXME:Log warning
+                      internalLogger.warn("node {} has a Null variant.", node);
                     } else {
                       value = (long) node.readAttribute(attr).getValue().getValue();
                     }
@@ -731,10 +723,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
       }
     }
 
-    /**
-     * FIXME:Need to come up with a mechanism to not update certain values that are up to date...
-     * The more I think about it, it might make sense to have "static" and "runtime" namespaces
-     */
     pushTuple(tdef, cols);
 
     inCount.getAndAdd(columnCount);
@@ -847,25 +835,21 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
   @Override
   public boolean isDisabled() {
-    // TODO Auto-generated method stub
     return linkStatus == Status.DISABLED;
   }
 
   @Override
   public long getDataInCount() {
-    // TODO Auto-generated method stub
     return inCount.get();
   }
 
   @Override
   public long getDataOutCount() {
-    // TODO Auto-generated method stub
     return 0;
   }
 
   @Override
   public void resetCounters() {
-    // TODO Auto-generated method stub
     inCount.set(0);
   }
 
@@ -880,24 +864,21 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
     List<EndpointDescription> endpoints = DiscoveryClient.getEndpoints(discoverURL).get();
 
-    //    FIXME:At the moment, we do not support certificates...
+    // At the moment, we do not support certificates.
     EndpointDescription selectedEndpoint = null;
     for (var endpoint : endpoints) {
       switch (endpoint.getSecurityMode()) {
         case Invalid:
-          //			FIXME:Add log message
+          internalLogger.warn("Endpoint mode {} is not supported.", endpoint.getSecurityMode());
           break;
         case None:
-          //			FIXME:Add log message
           selectedEndpoint = endpoint;
           break;
-          //			FIXME:Add log message
         case Sign:
+          internalLogger.warn("Endpoint mode {} is not supported.", endpoint.getSecurityMode());
           break;
         case SignAndEncrypt:
-          //			FIXME:Add log message
-          break;
-        default:
+          internalLogger.warn("Endpoint mode {} is not supported.", endpoint.getSecurityMode());
           break;
       }
 
@@ -939,8 +920,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
       List<ReferenceDescription> references = toList(browseResult.getReferences());
 
       if (references.isEmpty()) {
-        //    	  FIXME:Add log here
-
+        internalLogger.warn("Found empty reference list under {}.", browseRoot);
         return;
       }
 
@@ -962,7 +942,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
           value = attr.getValue();
 
         } catch (UaException e) {
-          // TODO Auto-generated catch block
           e.printStackTrace();
         }
 
@@ -980,10 +959,8 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
       }
 
     } catch (InterruptedException e1) {
-      // TODO Auto-generated catch block
       e1.printStackTrace();
     } catch (ExecutionException e1) {
-      // TODO Auto-generated catch block
       e1.printStackTrace();
     }
   }
@@ -1210,7 +1187,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     NodeId nodeID = null;
     nodeID = getNewNodeID(rootIdentifierType, rootNamespaceIndex, rootIdentifier);
 
-    //  FIXME:Make root default when no namespaceIndex/identifier pair is specified
+    //  TODO:Make root default when no namespaceIndex/identifier pair is specified
     browseNodeWithReferences("", client, nodeID);
   }
 
@@ -1580,7 +1557,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
           }
 
         } catch (UaException e) {
-          // TODO Auto-generated catch block
           e.printStackTrace();
           //			FIXME:Add log message
         }
