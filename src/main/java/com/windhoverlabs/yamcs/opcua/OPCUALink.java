@@ -35,11 +35,11 @@ package com.windhoverlabs.yamcs.opcua;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.uint;
-import static org.eclipse.milo.opcua.stack.core.util.ConversionUtil.toList;
 import static org.yamcs.xtce.NameDescription.qualifiedName;
 
 import com.google.gson.JsonObject;
 import java.io.BufferedWriter;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
@@ -80,23 +80,18 @@ import org.eclipse.milo.opcua.stack.core.types.builtin.StatusCode;
 import org.eclipse.milo.opcua.stack.core.types.builtin.Variant;
 import org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.UInteger;
 import org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.UShort;
-import org.eclipse.milo.opcua.stack.core.types.enumerated.BrowseDirection;
-import org.eclipse.milo.opcua.stack.core.types.enumerated.BrowseResultMask;
 import org.eclipse.milo.opcua.stack.core.types.enumerated.IdType;
 import org.eclipse.milo.opcua.stack.core.types.enumerated.MonitoringMode;
 import org.eclipse.milo.opcua.stack.core.types.enumerated.NodeClass;
 import org.eclipse.milo.opcua.stack.core.types.enumerated.TimestampsToReturn;
-import org.eclipse.milo.opcua.stack.core.types.structured.BrowseDescription;
 import org.eclipse.milo.opcua.stack.core.types.structured.BrowsePath;
 import org.eclipse.milo.opcua.stack.core.types.structured.BrowsePathResult;
-import org.eclipse.milo.opcua.stack.core.types.structured.BrowseResult;
 import org.eclipse.milo.opcua.stack.core.types.structured.ContentFilter;
 import org.eclipse.milo.opcua.stack.core.types.structured.EndpointDescription;
 import org.eclipse.milo.opcua.stack.core.types.structured.EventFilter;
 import org.eclipse.milo.opcua.stack.core.types.structured.MonitoredItemCreateRequest;
 import org.eclipse.milo.opcua.stack.core.types.structured.MonitoringParameters;
 import org.eclipse.milo.opcua.stack.core.types.structured.ReadValueId;
-import org.eclipse.milo.opcua.stack.core.types.structured.ReferenceDescription;
 import org.eclipse.milo.opcua.stack.core.types.structured.RelativePath;
 import org.eclipse.milo.opcua.stack.core.types.structured.RelativePathElement;
 import org.eclipse.milo.opcua.stack.core.types.structured.SimpleAttributeOperand;
@@ -122,12 +117,10 @@ import org.yamcs.tctm.AbstractLink;
 import org.yamcs.tctm.Link;
 import org.yamcs.tctm.LinkAction;
 import org.yamcs.utils.ValueUtility;
-import org.yamcs.xtce.AggregateParameterType;
 import org.yamcs.xtce.BooleanParameterType;
 import org.yamcs.xtce.EnumeratedParameterType;
 import org.yamcs.xtce.FloatParameterType;
 import org.yamcs.xtce.IntegerParameterType;
-import org.yamcs.xtce.Member;
 import org.yamcs.xtce.NameDescription;
 import org.yamcs.xtce.Parameter;
 import org.yamcs.xtce.ParameterType;
@@ -200,16 +193,9 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
   private static TupleDefinition gftdef = StandardTupleDefinitions.PARAMETER.copy();
 
-  private AggregateParameterType opcuaAttrsType;
-  private AggregateParameterType opcuaNodeIdNumericType;
-  private AggregateParameterType opcuaNodeIdStringType;
   private ManagedSubscription opcuaSubscription;
 
   private static final Logger internalLogger = LoggerFactory.getLogger(OPCUALink.class.getName());
-
-  private int rootNamespaceIndex;
-  private String rootIdentifier; // Relative to the rootNamespaceIndex
-  private IdType rootIdentifierType; // Relative to the rootNamespaceIndex
 
   /**
    * @note ALWAYS re-use params as org.yamcs.parameter.ParameterRequestManager.param2RequestMap uses
@@ -294,8 +280,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     rootNodeIDSpec.addOption("identifier", OptionType.STRING).withRequired(true);
     rootNodeIDSpec.addOption("identifierType", OptionType.STRING).withRequired(true);
 
-    spec.addOption("rootNodeID", OptionType.MAP).withRequired(false).withSpec(rootNodeIDSpec);
-
     Spec nodePathSpec = new Spec();
     nodePathSpec.addOption("path", OptionType.STRING);
     nodePathSpec
@@ -328,22 +312,24 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     YarchDatabaseInstance ydb = YarchDatabase.getInstance(yamcsInstance);
 
     this.opcuaStreamName = config.getString("opcuaStream");
-
     this.opcuaStream = getStream(ydb, opcuaStreamName);
+    this.parametersNamespace = config.getString("parametersNamespace");
+    this.mdb = YamcsServer.getServer().getInstance(yamcsInstance).getXtceDb();
 
+    readOPCUAConfig(config);
+    readNodePathsConfig(config);
+
+    outputFile = config.getString("xtceOutputFile");
+  }
+
+  private void readOPCUAConfig(YConfiguration config) {
     this.endpointURL = config.getString("endpointUrl");
     this.discoverURL = config.getString("discoveryUrl");
-
-    this.parametersNamespace = config.getString("parametersNamespace");
+    this.publishInterval = config.getInt("publishInterval");
     this.queryAllNodesAtStartup = config.getBoolean("queryAllNodesAtStartup", false);
+  }
 
-    Map<Object, Object> root = config.getMap("rootNodeID");
-
-    rootNamespaceIndex = (int) root.get("namespaceIndex");
-
-    rootIdentifier = (String) root.get("identifier");
-    rootIdentifierType = IdType.valueOf((String) root.get("identifierType"));
-
+  private void readNodePathsConfig(YConfiguration config) {
     List<Map<Object, Object>> nodePaths = config.getList("nodePaths");
 
     for (Map<Object, Object> path : nodePaths) {
@@ -352,11 +338,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
       nodePath.rootNodeID = (HashMap<Object, Object>) path.get("rootNodeID");
       relativeNodePaths.add(nodePath);
     }
-
-    this.mdb = YamcsServer.getServer().getInstance(yamcsInstance).getXtceDb();
-
-    outputFile = config.getString("xtceOutputFile");
-    publishInterval = config.getInt("publishInterval");
   }
 
   private static SpaceSystem verifySpaceSystem(XtceDb mdb, String pathName) {
@@ -397,37 +378,12 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
    * OPCUA terms).
    */
   private void opcuaInit() {
-    createOPCUAAttrAggregateType();
-    createOPCUANodeIdTypes();
-    mdb.addParameterType(opcuaAttrsType, true);
-
     try {
 
       currentOPCUAStatus = OPCUAStatus.OPCUA_INIT_TREE;
-
       browseOPCUATree(client);
-
       currentOPCUAStatus = OPCUAStatus.OPCUA_INIT_GENERATE_XTCE;
-
-      var spaceSystem = verifySpaceSystem(mdb, "/");
-
-      var xtce = new XtceAssembler().toXtce(mdb, spaceSystem.getQualifiedName(), fqn -> true);
-
-      BufferedWriter writer = null;
-
-      if (outputFile != null) {
-        writer =
-            Files.newBufferedWriter(
-                Paths.get(outputFile),
-                StandardOpenOption.CREATE,
-                StandardOpenOption.TRUNCATE_EXISTING);
-      } else writer = null;
-
-      writer.write(xtce);
-
-      writer.flush();
-      writer.close();
-
+      exportXTCE();
       currentOPCUAStatus = OPCUAStatus.OPCUA_INIT_EVENTS;
       subscribeToEvents(client);
 
@@ -440,6 +396,25 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
       createOPCUASubscriptions();
     } catch (Exception e) {
       e.printStackTrace();
+    }
+  }
+
+  private void exportXTCE() throws IOException {
+    var spaceSystem = verifySpaceSystem(mdb, parametersNamespace);
+    var xtce = new XtceAssembler().toXtce(mdb, spaceSystem.getQualifiedName(), fqn -> true);
+    BufferedWriter writer = null;
+
+    if (outputFile != null) {
+      writer =
+          Files.newBufferedWriter(
+              Paths.get(outputFile),
+              StandardOpenOption.CREATE,
+              StandardOpenOption.TRUNCATE_EXISTING);
+
+      writer.write(xtce);
+
+      writer.flush();
+      writer.close();
     }
   }
 
@@ -587,7 +562,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
         switch (NodeClass.from((int) nodeClass.getValue().getValue())) {
           case Variable:
             for (AttributeId attr : AttributeId.VARIABLE_ATTRIBUTES) {
-
               VariableParam p = nodeIDToParamsMap.get(new NodeIDAttrPair(nId, attr));
 
               if (p.getParameterType() == null) {
@@ -601,11 +575,11 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
               switch (p.getParameterType().getValueType()) {
                 case BOOLEAN:
                   {
-                    String value = "";
+                    Boolean value = true;
                     if (node.readAttribute(attr).getValue().isNull()) {
-                      value = "NULL";
+                      //                      value = "NULL";
                     } else {
-                      value = node.readAttribute(attr).getValue().getValue().toString();
+                      value = (Boolean) node.readAttribute(attr).getValue().getValue();
                     }
 
                     tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
@@ -614,54 +588,54 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
                   break;
                 case DOUBLE:
                   {
-                    double value = 0;
+                    Number value = 0;
                     if (node.readAttribute(attr).getValue().isNull()) {
                       internalLogger.warn("node {} has a Null variant.", node);
                     } else {
-                      value = (double) node.readAttribute(attr).getValue().getValue();
+                      value = (Number) node.readAttribute(attr).getValue().getValue();
                     }
 
                     tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
-                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
+                    cols.add(getPV(p, Instant.now().toEpochMilli(), value.doubleValue()));
                   }
                   break;
                 case FLOAT:
                   {
-                    float value = 0;
+                    Number value = 0;
                     if (node.readAttribute(attr).getValue().isNull()) {
                       internalLogger.warn("node {} has a Null variant.", node);
                     } else {
-                      value = (float) node.readAttribute(attr).getValue().getValue();
+                      value = (Number) node.readAttribute(attr).getValue().getValue();
                     }
 
                     tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
-                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
+                    cols.add(getPV(p, Instant.now().toEpochMilli(), value.floatValue()));
                   }
                   break;
                 case SINT32:
                   {
-                    int value = 0;
+                    Number value = 0;
                     if (node.readAttribute(attr).getValue().isNull()) {
                       internalLogger.warn("node {} has a Null variant.", node);
                     } else {
-                      value = (int) node.readAttribute(attr).getValue().getValue();
+                      value = (Number) node.readAttribute(attr).getValue().getValue();
                     }
 
                     tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
-                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
+                    cols.add(getPV(p, Instant.now().toEpochMilli(), value.intValue()));
                   }
                   break;
                 case SINT64:
                   {
-                    long value = 0;
+                    Number value = 0;
                     if (node.readAttribute(attr).getValue().isNull()) {
                       internalLogger.warn("node {} has a Null variant.", node);
                     } else {
-                      value = (long) node.readAttribute(attr).getValue().getValue();
+                      value = (Number) node.readAttribute(attr).getValue().getValue();
                     }
 
                     tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
-                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
+                    cols.add(getPV(p, Instant.now().toEpochMilli(), value.longValue()));
                   }
                   break;
                 case STRING:
@@ -679,28 +653,28 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
                   break;
                 case UINT32:
                   {
-                    long value = 0;
+                    Number value = 0;
                     if (node.readAttribute(attr).getValue().isNull()) {
                       internalLogger.warn("node {} has a Null variant.", node);
                     } else {
-                      value = (long) node.readAttribute(attr).getValue().getValue();
+                      value = (Number) node.readAttribute(attr).getValue().getValue();
                     }
 
                     tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
-                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
+                    cols.add(getPV(p, Instant.now().toEpochMilli(), value.longValue()));
                   }
                   break;
                 case UINT64:
                   {
-                    long value = 0;
+                    Number value = 0;
                     if (node.readAttribute(attr).getValue().isNull()) {
                       internalLogger.warn("node {} has a Null variant.", node);
                     } else {
-                      value = (long) node.readAttribute(attr).getValue().getValue();
+                      value = (Number) node.readAttribute(attr).getValue().getValue();
                     }
 
                     tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
-                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
+                    cols.add(getPV(p, Instant.now().toEpochMilli(), value.longValue()));
                   }
                   break;
                 default:
@@ -897,75 +871,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
   }
 
   /**
-   * Browse all nodes starting from browseRoot.
-   *
-   * @param indent
-   * @param client
-   * @param browseRoot
-   */
-  private void browseNodeWithReferences(String indent, OpcUaClient client, NodeId browseRoot) {
-    BrowseDescription browse =
-        new BrowseDescription(
-            browseRoot,
-            BrowseDirection.Forward,
-            Identifiers.References,
-            true,
-            uint(NodeClass.Object.getValue() | NodeClass.Variable.getValue()),
-            uint(BrowseResultMask.All.getValue()));
-
-    try {
-
-      BrowseResult browseResult = client.browse(browse).get();
-
-      List<ReferenceDescription> references = toList(browseResult.getReferences());
-
-      if (references.isEmpty()) {
-        internalLogger.warn("Found empty reference list under {}.", browseRoot);
-        return;
-      }
-
-      for (ReferenceDescription rd : references) {
-        Object desc = null;
-        Object value = null;
-        UaNode node = null;
-        try {
-
-          node =
-              client
-                  .getAddressSpace()
-                  .getNode(rd.getNodeId().toNodeId(client.getNamespaceTable()).get());
-          DataValue attr = node.readAttribute(AttributeId.Description);
-          desc = attr.getValue().getValue();
-
-          attr = node.readAttribute(AttributeId.Value);
-
-          value = attr.getValue();
-
-        } catch (UaException e) {
-          e.printStackTrace();
-        }
-
-        if (node != null) {
-          addOPCUAPV(client, node);
-
-          log.debug(
-              "{} Node={}, Desc={}, Value={}", indent, rd.getBrowseName().getName(), desc, value);
-
-          // recursively browse to children
-          rd.getNodeId()
-              .toNodeId(client.getNamespaceTable())
-              .ifPresent(nodeId -> browseNodeWithReferences(indent + "  ", client, nodeId));
-        }
-      }
-
-    } catch (InterruptedException e1) {
-      e1.printStackTrace();
-    } catch (ExecutionException e1) {
-      e1.printStackTrace();
-    }
-  }
-
-  /**
    * Adds new PV with the name of node.
    *
    * @param client
@@ -1043,8 +948,10 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
    * @param client
    * @param browseRoot
    * @param nodePath in the format of "0:Root,0:Objects,2:HelloWorld,2:MyObject,2:Bar"
+   * @throws Exception
    */
-  private void browsePath(String indent, OpcUaClient client, NodeId startingNode, String nodePath) {
+  private void browsePath(String indent, OpcUaClient client, NodeId startingNode, String nodePath)
+      throws Exception {
     internalLogger.info("Browsing at " + startingNode);
     ArrayList<String> rPathTokens = new ArrayList<String>();
     ArrayList<RelativePathElement> relaitivePathElements = new ArrayList<RelativePathElement>();
@@ -1092,7 +999,21 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
     if (statusCode.isBad()) {
       log.warn("Bad status code:" + statusCode);
-      return;
+      //      throw new Exception("Bad status code:" + statusCode);
+      //      FIXME:send error yamcs event.
+      org.yamcs.yarch.protobuf.Db.Event ev =
+          Event.newBuilder()
+              .setGenerationTime(YamcsServer.getTimeService(yamcsInstance).getMissionTime())
+              .setGenerationTime(YamcsServer.getTimeService(yamcsInstance).getMissionTime())
+              .setSource(this.linkName)
+              .setType(this.linkName)
+              .setMessage("Failed to find node:" + nodePath + ". Error code info:" + statusCode)
+              .setSeverity(EventSeverity.ERROR)
+              .build();
+      eventProducer.sendEvent(ev);
+
+      throw new Exception("Bad status code:" + statusCode);
+
     } else if (statusCode.isUncertain()) {
       log.warn("Uncertain status code:" + statusCode);
       return;
@@ -1171,8 +1092,9 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
    * Browses the tree on the OPCUA server and maps them to YAMCS Parameters.
    *
    * @param client
+   * @throws Exception
    */
-  private void browseOPCUATree(OpcUaClient client) {
+  private void browseOPCUATree(OpcUaClient client) throws Exception {
     // start browsing at root folder
     internalLogger.info("Browsing OPCUA...");
     for (var p : relativeNodePaths) {
@@ -1183,12 +1105,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
       browsePath(
           endpointURL, client, getNewNodeID(identifierType, namespaceIndex, identifier), p.path);
     }
-
-    NodeId nodeID = null;
-    nodeID = getNewNodeID(rootIdentifierType, rootNamespaceIndex, rootIdentifier);
-
-    //  TODO:Make root default when no namespaceIndex/identifier pair is specified
-    browseNodeWithReferences("", client, nodeID);
   }
 
   /**
@@ -1305,41 +1221,43 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
                   break;
                 case DOUBLE:
                   {
-                    double value = (double) values.get(i).getValue().getValue();
+                    Number value = (Number) values.get(i).getValue().getValue();
 
                     tdef.addColumn(
                         nodeIDToParamsMap.get(nodeAttrKey).getQualifiedName(),
                         DataType.PARAMETER_VALUE);
-                    cols.add(getPV(nodeIDToParamsMap.get(nodeAttrKey), gentime, value));
+                    cols.add(
+                        getPV(nodeIDToParamsMap.get(nodeAttrKey), gentime, value.doubleValue()));
                   }
                   break;
                 case FLOAT:
                   {
-                    float value = (float) values.get(i).getValue().getValue();
+                    Number value = (Number) values.get(i).getValue().getValue();
 
                     tdef.addColumn(
                         nodeIDToParamsMap.get(nodeAttrKey).getQualifiedName(),
                         DataType.PARAMETER_VALUE);
-                    cols.add(getPV(nodeIDToParamsMap.get(nodeAttrKey), gentime, value));
+                    cols.add(
+                        getPV(nodeIDToParamsMap.get(nodeAttrKey), gentime, value.floatValue()));
                   }
                   break;
                 case SINT32:
                   {
-                    int value = (int) values.get(i).getValue().getValue();
+                    Number value = (Number) values.get(i).getValue().getValue();
                     tdef.addColumn(
                         nodeIDToParamsMap.get(nodeAttrKey).getQualifiedName(),
                         DataType.PARAMETER_VALUE);
-                    cols.add(getPV(nodeIDToParamsMap.get(nodeAttrKey), gentime, value));
+                    cols.add(getPV(nodeIDToParamsMap.get(nodeAttrKey), gentime, value.intValue()));
                   }
                   break;
                 case SINT64:
                   {
-                    long value = (long) values.get(i).getValue().getValue();
+                    Number value = (Number) values.get(i).getValue().getValue();
 
                     tdef.addColumn(
                         nodeIDToParamsMap.get(nodeAttrKey).getQualifiedName(),
                         DataType.PARAMETER_VALUE);
-                    cols.add(getPV(nodeIDToParamsMap.get(nodeAttrKey), gentime, value));
+                    cols.add(getPV(nodeIDToParamsMap.get(nodeAttrKey), gentime, value.longValue()));
                   }
                   break;
                 case STRING:
@@ -1352,33 +1270,23 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
                     cols.add(getPV(nodeIDToParamsMap.get(nodeAttrKey), gentime, value));
                   }
                   break;
-                case TIMESTAMP:
-                  {
-                    String value = (String) values.get(i).getValue().getValue();
-
-                    tdef.addColumn(
-                        nodeIDToParamsMap.get(nodeAttrKey).getQualifiedName(),
-                        DataType.PARAMETER_VALUE);
-                    cols.add(getPV(nodeIDToParamsMap.get(nodeAttrKey), gentime, value));
-                  }
-                  break;
                 case UINT32:
                   {
-                    int value = (int) values.get(i).getValue().getValue();
+                    Number value = (Number) values.get(i).getValue().getValue();
                     tdef.addColumn(
                         nodeIDToParamsMap.get(nodeAttrKey).getQualifiedName(),
                         DataType.PARAMETER_VALUE);
-                    cols.add(getPV(nodeIDToParamsMap.get(nodeAttrKey), gentime, value));
+                    cols.add(getPV(nodeIDToParamsMap.get(nodeAttrKey), gentime, value.longValue()));
                   }
                   break;
                 case UINT64:
                   {
-                    long value = (long) values.get(i).getValue().getValue();
+                    Number value = (Number) values.get(i).getValue().getValue();
 
                     tdef.addColumn(
                         nodeIDToParamsMap.get(nodeAttrKey).getQualifiedName(),
                         DataType.PARAMETER_VALUE);
-                    cols.add(getPV(nodeIDToParamsMap.get(nodeAttrKey), gentime, value));
+                    cols.add(getPV(nodeIDToParamsMap.get(nodeAttrKey), gentime, value.longValue()));
                   }
                   break;
                 default:
@@ -1396,61 +1304,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
             }
           }
         });
-  }
-
-  /**
-   * This method is here for future growth in case we find there is a benefit to using aggregate
-   * types
-   */
-  private void createOPCUAAttrAggregateType() {
-
-    AggregateParameterType.Builder opcuaAttrsTypeBuidlder = new AggregateParameterType.Builder();
-
-    opcuaAttrsType = new AggregateParameterType.Builder().setName("OPCUObjectAttributes").build();
-
-    opcuaAttrsTypeBuidlder.setName("OPCUObjectAttributes");
-    for (AttributeId attr : AttributeId.values()) {
-      opcuaAttrsTypeBuidlder.addMember(new Member(attr.toString(), getBasicType(mdb, Type.STRING)));
-    }
-
-    opcuaAttrsType = opcuaAttrsTypeBuidlder.build();
-    ((NameDescription) opcuaAttrsType)
-        .setQualifiedName(qualifiedName(parametersNamespace, opcuaAttrsType.getName()));
-  }
-
-  /**
-   * This method is here for future growth in case we find there is a benefit to using aggregate
-   * types
-   */
-  private void createOPCUANodeIdTypes() {
-    AggregateParameterType.Builder opcuaAttrsNumericNodeIdBuidlder =
-        new AggregateParameterType.Builder();
-
-    opcuaAttrsNumericNodeIdBuidlder.setName("OPCUA_Numeric_NodeId");
-    opcuaAttrsNumericNodeIdBuidlder.addMember(
-        new Member("namespaceIndex", getBasicType(mdb, Type.UINT64)));
-    opcuaAttrsNumericNodeIdBuidlder.addMember(
-        new Member("identifier", getBasicType(mdb, Type.UINT64)));
-
-    opcuaNodeIdNumericType = opcuaAttrsNumericNodeIdBuidlder.build();
-    ((NameDescription) opcuaNodeIdNumericType)
-        .setQualifiedName(qualifiedName(parametersNamespace, opcuaNodeIdNumericType.getName()));
-
-    AggregateParameterType.Builder opcuaAttrsTypeStringBuidlder =
-        new AggregateParameterType.Builder();
-
-    opcuaAttrsTypeStringBuidlder.setName("OPCUA_String_NodeId");
-    opcuaAttrsTypeStringBuidlder.addMember(
-        new Member("namespaceIndex", getBasicType(mdb, Type.UINT64)));
-    opcuaAttrsTypeStringBuidlder.addMember(
-        new Member("identifier", getBasicType(mdb, Type.STRING)));
-
-    opcuaNodeIdStringType = opcuaAttrsTypeStringBuidlder.build();
-    ((NameDescription) opcuaNodeIdStringType)
-        .setQualifiedName(qualifiedName(parametersNamespace, opcuaNodeIdStringType.getName()));
-
-    mdb.addParameterType(opcuaNodeIdNumericType, true);
-    mdb.addParameterType(opcuaNodeIdStringType, true);
   }
 
   /**
@@ -1528,29 +1381,34 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
           var value = node.readAttribute(attr).getValue();
 
           if (value.isNotNull()) {
+            NodeId valueObjectType =
+                value.getDataType().get().toNodeId(client.getNamespaceTable()).get();
 
-            Object valueObject = value.getValue();
-
-            if (valueObject instanceof Short) {
+            /** As per the spec:https://reference.opcfoundation.org/Core/Part6/v104/docs/5.1.2 */
+            if (valueObjectType.equals(Identifiers.SByte)) {
               pType = getBasicType(mdb, Type.SINT32);
-            } else if (valueObject instanceof Integer) {
+            } else if (valueObjectType.equals(Identifiers.Byte)) {
               pType = getBasicType(mdb, Type.SINT32);
-
-            } else if (valueObject instanceof Long) {
+            } else if (valueObjectType.equals(Identifiers.Int16)) {
+              pType = getBasicType(mdb, Type.SINT32);
+            } else if (valueObjectType.equals(Identifiers.UInt16)) {
+              pType = getBasicType(mdb, Type.SINT32);
+            } else if (valueObjectType.equals(Identifiers.Int32)) {
+              pType = getBasicType(mdb, Type.SINT32);
+            } else if (valueObjectType.equals(Identifiers.UInt32)) {
+              pType = getBasicType(mdb, Type.UINT32);
+            } else if (valueObjectType.equals(Identifiers.Int64)) {
               pType = getBasicType(mdb, Type.SINT64);
-            } else if (valueObject instanceof Double) {
-              pType = getBasicType(mdb, Type.DOUBLE);
-            } else if (valueObject instanceof Float) {
+            } else if (valueObjectType.equals(Identifiers.UInt64)) {
+              pType = getBasicType(mdb, Type.UINT64);
+            } else if (valueObjectType.equals(Identifiers.Float)) {
               pType = getBasicType(mdb, Type.FLOAT);
-            } else if (valueObject instanceof Character) {
+            } else if (valueObjectType.equals(Identifiers.Double)) {
+              pType = getBasicType(mdb, Type.DOUBLE);
+            } else if (valueObjectType.equals(Identifiers.String)) {
               pType = getBasicType(mdb, Type.STRING);
-            } else if (valueObject instanceof String) {
-              pType = getBasicType(mdb, Type.STRING);
-
-            } else if (valueObject instanceof Boolean) {
+            } else if (valueObjectType.equals(Identifiers.Boolean)) {
               pType = getBasicType(mdb, Type.BOOLEAN);
-            } else {
-              pType = getBasicType(mdb, Type.STRING);
             }
           } else {
             pType = getBasicType(mdb, Type.STRING);
@@ -1726,13 +1584,11 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
   @Override
   public List<ParameterValue> getSystemParameters() {
     long time = getCurrentTime();
-
     ArrayList<ParameterValue> list = new ArrayList<>();
 
     list.add(
         org.yamcs.parameter.SystemParametersService.getPV(
             OPCUAStatusParam, time, currentOPCUAStatus));
-
     list.add(
         org.yamcs.parameter.SystemParametersService.getPV(
             OPCUAActiveSubsParam, time, OPCUAActiveSubs.get()));
