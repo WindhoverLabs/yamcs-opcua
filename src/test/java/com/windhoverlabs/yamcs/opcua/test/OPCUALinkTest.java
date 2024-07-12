@@ -123,7 +123,7 @@ public class OPCUALinkTest extends AbstractOPCUAIntegrationTest {
 
     var refParam =
         mdbClient
-            .getParameter("/instruments/tvac/ns=2-s=HelloWorld/Dynamic/Dynamic/Value")
+            .getParameter("/instruments/tvac/ns=2-s=HelloWorld/Dynamic/Boolean/Boolean/Value")
             .get(200, TimeUnit.MILLISECONDS);
     assertNotNull(refParam);
 
@@ -134,7 +134,7 @@ public class OPCUALinkTest extends AbstractOPCUAIntegrationTest {
     action.execute(l, new JsonObject());
 
     /** FIXME:Don't really like making timing assumptions when it comes to futures.. */
-    Thread.sleep(5000);
+    Thread.sleep(10000);
 
     l.resetCounters();
     l.doDisable();

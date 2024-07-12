@@ -548,6 +548,47 @@ public class ExampleNamespace extends ManagedNamespaceWithLifecycle {
       dynamicFolder.addOrganizes(node);
     }
 
+    // Dynamic UInt32
+    {
+      String name = "UInt32";
+      NodeId typeId = Identifiers.UInt32;
+      Variant variant = new Variant(0);
+
+      UaVariableNode node =
+          new UaVariableNode.UaVariableNodeBuilder(getNodeContext())
+              .setNodeId(newNodeId("HelloWorld/Dynamic/" + name))
+              .setAccessLevel(AccessLevel.READ_WRITE)
+              .setBrowseName(newQualifiedName(name))
+              .setDisplayName(LocalizedText.english(name))
+              .setDataType(typeId)
+              .setTypeDefinition(Identifiers.BaseDataVariableType)
+              .build();
+
+      node.setValue(new DataValue(variant));
+
+      node.getFilterChain()
+          .addLast(
+              new AttributeLoggingFilter(),
+              AttributeFilters.getValue(
+                  ctx ->
+                      new DataValue(
+                          new Variant(
+                              org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned
+                                  .uint(random.nextInt())))));
+
+      //      node.getFilterChain()
+      //      .addLast(
+      //          new AttributeLoggingFilter(),
+      //          AttributeFilters.getValue(
+      //              ctx ->
+      //                  new DataValue(
+      //                      new Variant(
+      //                    		  random.nextInt() ))));
+
+      getNodeManager().addNode(node);
+      dynamicFolder.addOrganizes(node);
+    }
+
     // Dynamic Double
     {
       String name = "Double";
@@ -570,6 +611,120 @@ public class ExampleNamespace extends ManagedNamespaceWithLifecycle {
           .addLast(
               new AttributeLoggingFilter(),
               AttributeFilters.getValue(ctx -> new DataValue(new Variant(random.nextDouble()))));
+
+      getNodeManager().addNode(node);
+      dynamicFolder.addOrganizes(node);
+    }
+
+    // Dynamic Float
+    {
+      String name = "Float";
+      NodeId typeId = Identifiers.Float;
+      Variant variant = new Variant(0.0);
+
+      UaVariableNode node =
+          new UaVariableNode.UaVariableNodeBuilder(getNodeContext())
+              .setNodeId(newNodeId("HelloWorld/Dynamic/" + name))
+              .setAccessLevel(AccessLevel.READ_WRITE)
+              .setBrowseName(newQualifiedName(name))
+              .setDisplayName(LocalizedText.english(name))
+              .setDataType(typeId)
+              .setTypeDefinition(Identifiers.BaseDataVariableType)
+              .build();
+
+      node.setValue(new DataValue(variant));
+
+      node.getFilterChain()
+          .addLast(
+              new AttributeLoggingFilter(),
+              AttributeFilters.getValue(ctx -> new DataValue(new Variant(random.nextFloat()))));
+
+      getNodeManager().addNode(node);
+      dynamicFolder.addOrganizes(node);
+    }
+
+    // Dynamic SInt64
+    {
+      String name = "Int64";
+      NodeId typeId = Identifiers.Int64;
+      Variant variant = new Variant(0.0);
+
+      UaVariableNode node =
+          new UaVariableNode.UaVariableNodeBuilder(getNodeContext())
+              .setNodeId(newNodeId("HelloWorld/Dynamic/" + name))
+              .setAccessLevel(AccessLevel.READ_WRITE)
+              .setBrowseName(newQualifiedName(name))
+              .setDisplayName(LocalizedText.english(name))
+              .setDataType(typeId)
+              .setTypeDefinition(Identifiers.BaseDataVariableType)
+              .build();
+
+      node.setValue(new DataValue(variant));
+
+      node.getFilterChain()
+          .addLast(
+              new AttributeLoggingFilter(),
+              AttributeFilters.getValue(ctx -> new DataValue(new Variant(random.nextLong()))));
+
+      getNodeManager().addNode(node);
+      dynamicFolder.addOrganizes(node);
+    }
+
+    // Dynamic UInt64
+    {
+      String name = "UInt64";
+      NodeId typeId = Identifiers.UInt64;
+      Variant variant = new Variant(0.0);
+
+      UaVariableNode node =
+          new UaVariableNode.UaVariableNodeBuilder(getNodeContext())
+              .setNodeId(newNodeId("HelloWorld/Dynamic/" + name))
+              .setAccessLevel(AccessLevel.READ_WRITE)
+              .setBrowseName(newQualifiedName(name))
+              .setDisplayName(LocalizedText.english(name))
+              .setDataType(typeId)
+              .setTypeDefinition(Identifiers.BaseDataVariableType)
+              .build();
+
+      node.setValue(new DataValue(variant));
+
+      node.getFilterChain()
+          .addLast(
+              new AttributeLoggingFilter(),
+              AttributeFilters.getValue(
+                  ctx ->
+                      new DataValue(
+                          new Variant(
+                              org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned
+                                  .ulong(random.nextLong())))));
+
+      getNodeManager().addNode(node);
+      dynamicFolder.addOrganizes(node);
+    }
+
+    // Dynamic String
+    {
+      String name = "String";
+      NodeId typeId = Identifiers.String;
+      Variant variant = new Variant(0.0);
+
+      UaVariableNode node =
+          new UaVariableNode.UaVariableNodeBuilder(getNodeContext())
+              .setNodeId(newNodeId("HelloWorld/Dynamic/" + name))
+              .setAccessLevel(AccessLevel.READ_WRITE)
+              .setBrowseName(newQualifiedName(name))
+              .setDisplayName(LocalizedText.english(name))
+              .setDataType(typeId)
+              .setTypeDefinition(Identifiers.BaseDataVariableType)
+              .build();
+
+      node.setValue(new DataValue(variant));
+
+      node.getFilterChain()
+          .addLast(
+              new AttributeLoggingFilter(),
+              AttributeFilters.getValue(
+                  ctx -> new DataValue(new Variant("Random int:" + random.nextLong()))));
 
       getNodeManager().addNode(node);
       dynamicFolder.addOrganizes(node);
