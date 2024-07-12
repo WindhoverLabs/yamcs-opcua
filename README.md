@@ -7,74 +7,32 @@
 
   - name: tm_ocpua
     class: com.windhoverlabs.yamcs.opcua.OPCUALink
-    # stream: tm_realtime
     opcuaStream: "opcua_params"
     xtceOutputFile: opcua_xtce.xml
-    # endpoint_url: "opc.tcp://localhost:4840/"
     endpointUrl: "opc.tcp://localhost:12686/milo"
     discoveryUrl: "opc.tcp://localhost:12686/milo/discovery"
     parametersNamespace: "/instruments/tvac"
     queryAllNodesAtStartup: true # defaults to false
     publishInterval: 100
-    
-    # i 	Numeric (UInteger)
-    # s 	String (String)
-    # g 	Guid (Guid)
-    # b 	Opaque (ByteString)
-
     nodePaths:
       - path: "2:HelloWorld,2:MyObject,2:Bar"
         rootNodeID: #Link starts browsing at this node
           namespaceIndex: 0
-          # "ns=2;s=HelloWorld/MyObject"
           identifierType: Numeric
-          # identifier: "HelloWorld"  #84 is Root
-          # 0:Root,0:Objects,2:HelloWorld,2:MyObject,2:Bar
-          # 0:Root,0:Objects,2:HelloWorld,2:ArrayTypes
-          # ns=2;s=HelloWorld/MyObject
-          # ns=2;s=HelloWorld/MyObject/2:Bar
-          # 0:Root,0:Objects,2:HelloWorld,2:MyObject,2:Foo
           identifier: "85"  #84 is Root
 
       - path: "2:HelloWorld,2:MyObject,2:Foo"
         rootNodeID: #Link starts browsing at this node
           namespaceIndex: 0
-          # "ns=2;s=HelloWorld/MyObject"
           identifierType: Numeric
-          # identifier: "HelloWorld"  #84 is Root
-          # 0:Root,0:Objects,2:HelloWorld,2:MyObject,2:Bar
-          # 0:Root,0:Objects,2:HelloWorld,2:ArrayTypes
-          # ns=2;s=HelloWorld/MyObject
-          # ns=2;s=HelloWorld/MyObject/2:Bar
-          # 0:Root,0:Objects,2:HelloWorld,2:MyObject,2:Foo
           identifier: "85"  #84 is Root
 
-
-      # - path: "2:HelloWorld,2:WriteOnly"
-      #   rootNodeID: #Link starts browsing at this node
-      #     namespaceIndex: 0
-      #     # "ns=2;s=HelloWorld/MyObject"
-      #     identifierType: Numeric
-      #     # identifier: "HelloWorld"  #84 is Root
-      #     # 0:Root,0:Objects,2:HelloWorld,2:MyObject,2:Bar
-      #     # 0:Root,0:Objects,2:HelloWorld,2:ArrayTypes
-      #     # ns=2;s=HelloWorld/MyObject
-      #     # ns=2;s=HelloWorld/MyObject/2:Bar
-      #     # 0:Root,0:Objects,2:HelloWorld,2:MyObject,2:Foo
-      #     identifier: "85"  #84 is Root
 
   #FIXME: Make browsing the root node by reference optional.
     rootNodeID: #Link starts browsing at this node
       namespaceIndex: 0
-      # "ns=2;s=HelloWorld/MyObject"
       identifierType: Numeric
-      # identifier: "HelloWorld"  #84 is Root
-      # 0:Root,0:Objects,2:HelloWorld,2:MyObject,2:Bar
-      # 0:Root,0:Objects,2:HelloWorld,2:ArrayTypes
-      # ns=2;s=HelloWorld/MyObject
-      # ns=2;s=HelloWorld/MyObject/2:Bar
       identifier: "84"  #84 is Root
-
 
 ```
 

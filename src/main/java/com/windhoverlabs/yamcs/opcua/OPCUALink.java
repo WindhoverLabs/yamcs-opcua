@@ -331,15 +331,14 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
     this.opcuaStreamName = config.getString("opcuaStream");
 
-    opcuaStream = getStream(ydb, opcuaStreamName);
+    this.opcuaStream = getStream(ydb, opcuaStreamName);
 
     this.endpointURL = config.getString("endpointUrl");
-
     this.discoverURL = config.getString("discoveryUrl");
 
     this.parametersNamespace = config.getString("parametersNamespace");
 
-    queryAllNodesAtStartup = config.getBoolean("queryAllNodesAtStartup", false);
+    this.queryAllNodesAtStartup = config.getBoolean("queryAllNodesAtStartup", false);
 
     Map<Object, Object> root = config.getMap("rootNodeID");
 
@@ -357,7 +356,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
       relativeNodePaths.add(nodePath);
     }
 
-    mdb = YamcsServer.getServer().getInstance(yamcsInstance).getXtceDb();
+    this.mdb = YamcsServer.getServer().getInstance(yamcsInstance).getXtceDb();
 
     outputFile = config.getString("xtceOutputFile");
     publishInterval = config.getInt("publishInterval");
@@ -1165,8 +1164,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
         switch (NodeClass.from((int) nodeClass.getValue())) {
             // As per the spec, the only thing we can subscribe to is Variables
           case Variable:
-            //              ManagedDataItem dataItem = opcuaSubscription.createDataItem(id);
-
             variableNodes.add(id);
             break;
         }
