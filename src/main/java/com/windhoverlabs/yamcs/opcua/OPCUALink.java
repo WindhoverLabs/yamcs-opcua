@@ -163,7 +163,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
   class NodePath {
     String path;
-
     HashMap<Object, Object> rootNodeID = new HashMap<Object, Object>();
   }
 
@@ -183,16 +182,11 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
   /* Internal member attributes. */
   protected Thread thread;
-
   private String opcuaStreamName;
-
   private String parametersNamespace;
   XtceDb mdb;
-
   Stream opcuaStream;
-
   private static TupleDefinition gftdef = StandardTupleDefinitions.PARAMETER.copy();
-
   private ManagedSubscription opcuaSubscription;
 
   private static final Logger internalLogger = LoggerFactory.getLogger(OPCUALink.class.getName());
@@ -514,7 +508,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
   public void run() {
     opcuaInit();
     if (queryAllNodesAtStartup) {
-      //    	NOTE:I'm not sure if queryAllOPCUAData should block...
       currentOPCUAStatus = OPCUAStatus.OPCUA_INIT_ALL_DATA_QUERY;
       queryAllOPCUAData();
     }
@@ -698,7 +691,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     }
 
     pushTuple(tdef, cols);
-
     inCount.getAndAdd(columnCount);
   }
 
@@ -987,11 +979,9 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     try {
       response = client.translateBrowsePaths(list).get();
     } catch (InterruptedException e) {
-      // TODO Auto-generated catch block
-      e.printStackTrace();
+      internalLogger.warn(e.toString());
     } catch (ExecutionException e) {
-      // TODO Auto-generated catch block
-      e.printStackTrace();
+      internalLogger.warn(e.toString());
     }
 
     BrowsePathResult result = Arrays.asList(response.getResults()).get(0);
@@ -999,8 +989,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
     if (statusCode.isBad()) {
       log.warn("Bad status code:" + statusCode);
-      //      throw new Exception("Bad status code:" + statusCode);
-      //      FIXME:send error yamcs event.
       org.yamcs.yarch.protobuf.Db.Event ev =
           Event.newBuilder()
               .setGenerationTime(YamcsServer.getTimeService(yamcsInstance).getMissionTime())
@@ -1028,8 +1016,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
       addOPCUAPV(client, node);
     } catch (UaException e) {
-      // TODO Auto-generated catch block
-      e.printStackTrace();
+      internalLogger.warn(e.toString());
     }
   }
 
@@ -1054,8 +1041,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
         nodeClass = node.readAttribute(AttributeId.NodeClass).getValue();
 
       } catch (UaException e) {
-        // TODO Auto-generated catch block
-        e.printStackTrace();
+        internalLogger.warn(e.toString());
       }
       if (nodeClass != null) {
         //        try {
@@ -1075,11 +1061,16 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
         OPCUAActiveSubs.addAndGet(1);
       }
     } catch (UaException e) {
-      // TODO Auto-generated catch block
-      e.printStackTrace();
+      internalLogger.warn(e.toString());
     }
   }
 
+  /**
+   * Connects to OPCUA server and activates query all action.
+   *
+   * @param client
+   * @throws Exception
+   */
   public void connectToOPCUAServer(OpcUaClient client) throws Exception {
     internalLogger.info("Connecting to OPCUA server...");
     client.connect().get();
@@ -1120,18 +1111,16 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     NodeId nodeID = null;
     switch (rootIdentifierType) {
       case Guid:
-        //		FIXME
+        internalLogger.warn("Guid nodeID is not supported");
         break;
       case Numeric:
         nodeID = new NodeId(NamespaceIndex, Integer.parseInt(Identifier));
         break;
       case Opaque:
-        //		FIXME
+        internalLogger.warn("Guid Opaque is not supported");
         break;
       case String:
         nodeID = new NodeId(NamespaceIndex, Identifier);
-        break;
-      default:
         break;
     }
     return nodeID;
@@ -1415,8 +1404,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
           }
 
         } catch (UaException e) {
-          e.printStackTrace();
-          //			FIXME:Add log message
+          internalLogger.warn(e.toString());
         }
         break;
       case ValueRank:
