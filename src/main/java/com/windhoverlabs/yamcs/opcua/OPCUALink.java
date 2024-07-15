@@ -170,6 +170,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
   public enum OPCUAStatus {
     OPCUA_INIT_CONFIG,
     OPCUA_INIT_TREE,
+    OPCUA_INIT_TREE_FAILED,
     OPCUA_INIT_GENERATE_XTCE,
     OPCUA_INIT_EVENTS,
     OPCUA_INIT_DATA_SUBSCRIPTION,
@@ -383,6 +384,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
     } catch (Exception e) {
       e.printStackTrace();
+      currentOPCUAStatus = OPCUAStatus.OPCUA_INIT_TREE_FAILED;
       return;
     }
     try {

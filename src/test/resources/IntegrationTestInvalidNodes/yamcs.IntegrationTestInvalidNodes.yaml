@@ -16,20 +16,20 @@ services:
 
 dataLinks:
   - name: tm_realtime
-    class: com.windhoverlabs.yamcs.opcua.test.AbstractOPCUAIntegrationTest$PacketProvider
+    class: com.windhoverlabs.yamcs.opcua.test.AbstractOPCUAIntegrationInvalidNodesTest$PacketProvider
     num: 0
     stream: tm_realtime
   - name: tm2_realtime
-    class: com.windhoverlabs.yamcs.opcua.test.AbstractOPCUAIntegrationTest$PacketProvider
+    class: com.windhoverlabs.yamcs.opcua.test.AbstractOPCUAIntegrationInvalidNodesTest$PacketProvider
     num: 1
     stream: tm2_realtime
             
   - name: pp_realtime
-    class: com.windhoverlabs.yamcs.opcua.test.AbstractOPCUAIntegrationTest$ParameterProvider
+    class: com.windhoverlabs.yamcs.opcua.test.AbstractOPCUAIntegrationInvalidNodesTest$ParameterProvider
     stream: pp_realtime
     num: 0
   - name: tc_realtime
-    class: com.windhoverlabs.yamcs.opcua.test.AbstractOPCUAIntegrationTest$TcDataLink
+    class: com.windhoverlabs.yamcs.opcua.test.AbstractOPCUAIntegrationInvalidNodesTest$TcDataLink
     num: 0
     stream: tc_realtime
  
@@ -99,12 +99,11 @@ dataLinks:
           identifierType: Numeric
           identifier: "84"  #84 is Root
 
-      - path: "0:Objects,2:HelloWorld,2:Dynamic,2:UInt16"
+      - path: "0:Objects,2:HelloWorld,2:Dynamic,2:InvalidNode"
         rootNodeID: #Link starts browsing at this node
           namespaceIndex: 0
           identifierType: Numeric
           identifier: "84"  #84 is Root
-
 
 
 mdb:

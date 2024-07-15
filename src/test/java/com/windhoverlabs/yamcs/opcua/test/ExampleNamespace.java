@@ -729,6 +729,38 @@ public class ExampleNamespace extends ManagedNamespaceWithLifecycle {
       getNodeManager().addNode(node);
       dynamicFolder.addOrganizes(node);
     }
+
+    // Dynamic UInt16
+    {
+      String name = "UInt16";
+      NodeId typeId = Identifiers.UInt16;
+      Variant variant = new Variant(0.0);
+
+      UaVariableNode node =
+          new UaVariableNode.UaVariableNodeBuilder(getNodeContext())
+              .setNodeId(newNodeId("HelloWorld/Dynamic/" + name))
+              .setAccessLevel(AccessLevel.READ_WRITE)
+              .setBrowseName(newQualifiedName(name))
+              .setDisplayName(LocalizedText.english(name))
+              .setDataType(typeId)
+              .setTypeDefinition(Identifiers.BaseDataVariableType)
+              .build();
+
+      node.setValue(new DataValue(variant));
+
+      node.getFilterChain()
+          .addLast(
+              new AttributeLoggingFilter(),
+              AttributeFilters.getValue(
+                  ctx ->
+                      new DataValue(
+                          new Variant(
+                              org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned
+                                  .ulong(random.nextLong())))));
+
+      getNodeManager().addNode(node);
+      dynamicFolder.addOrganizes(node);
+    }
   }
 
   private void addDataAccessNodes(UaFolderNode rootNode) {
