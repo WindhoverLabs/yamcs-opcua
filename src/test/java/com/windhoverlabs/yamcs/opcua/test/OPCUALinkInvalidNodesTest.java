@@ -7,7 +7,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import com.google.gson.JsonObject;
 import com.windhoverlabs.yamcs.opcua.OPCUALink;
-import com.windhoverlabs.yamcs.opcua.OPCUALink.OPCUAStatus;
+import com.windhoverlabs.yamcs.opcua.OPCUALink.OPCUAINITStatus;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
@@ -118,7 +118,7 @@ public class OPCUALinkInvalidNodesTest extends AbstractOPCUAIntegrationInvalidNo
 
     //    while(l.getCurrentOPCUAStatus() != OPCUAStatus.OPCUA_OK);
 
-    assertEquals(OPCUAStatus.OPCUA_OK, l.getCurrentOPCUAStatus());
+    assertEquals(OPCUAINITStatus.OPCUA_INIT_TREE_FAILED, l.getCurrentOPCUAStatus());
 
     var refParam =
         mdbClient

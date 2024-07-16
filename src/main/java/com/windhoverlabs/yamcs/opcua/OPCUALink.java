@@ -167,7 +167,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
   }
 
   /** Useful status for tracking initialization status of the link. */
-  public enum OPCUAStatus {
+  public enum OPCUAINITStatus {
     OPCUA_INIT_CONFIG,
     OPCUA_INIT_TREE,
     OPCUA_INIT_TREE_FAILED,
@@ -175,7 +175,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     OPCUA_INIT_EVENTS,
     OPCUA_INIT_DATA_SUBSCRIPTION,
     OPCUA_INIT_ALL_DATA_QUERY,
-    OPCUA_OK
+    OPCUA_INIT_OK
   }
 
   /* Configuration Defaults */
@@ -224,7 +224,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
   /* System parameters*/
 
   private Parameter OPCUAStatusParam;
-  private OPCUAStatus currentOPCUAStatus;
+  private OPCUAINITStatus currentOPCUAStatus;
   private Parameter OPCUAActiveSubsParam;
   private AtomicLong OPCUAActiveSubs = new AtomicLong(0);
 
@@ -250,7 +250,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
         }
       };
 
-  public OPCUAStatus getCurrentOPCUAStatus() {
+  public OPCUAINITStatus getCurrentOPCUAStatus() {
     return currentOPCUAStatus;
   }
 
@@ -375,23 +375,31 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
   private void opcuaInit() {
     try {
 
-      currentOPCUAStatus = OPCUAStatus.OPCUA_INIT_TREE;
+      currentOPCUAStatus = OPCUAINITStatus.OPCUA_INIT_TREE;
       browseOPCUATree(client);
-      currentOPCUAStatus = OPCUAStatus.OPCUA_INIT_GENERATE_XTCE;
+      currentOPCUAStatus = OPCUAINITStatus.OPCUA_INIT_GENERATE_XTCE;
       exportXTCE();
-      currentOPCUAStatus = OPCUAStatus.OPCUA_INIT_EVENTS;
+      currentOPCUAStatus = OPCUAINITStatus.OPCUA_INIT_EVENTS;
       subscribeToEvents(client);
 
     } catch (Exception e) {
       e.printStackTrace();
-      currentOPCUAStatus = OPCUAStatus.OPCUA_INIT_TREE_FAILED;
+      currentOPCUAStatus = OPCUAINITStatus.OPCUA_INIT_TREE_FAILED;
       return;
     }
     try {
-      currentOPCUAStatus = OPCUAStatus.OPCUA_INIT_DATA_SUBSCRIPTION;
+      currentOPCUAStatus = OPCUAINITStatus.OPCUA_INIT_DATA_SUBSCRIPTION;
       createOPCUASubscriptions();
     } catch (Exception e) {
       e.printStackTrace();
+      return;
+    }
+
+    currentOPCUAStatus = OPCUAINITStatus.OPCUA_INIT_OK;
+
+    if (queryAllNodesAtStartup) {
+      currentOPCUAStatus = OPCUAINITStatus.OPCUA_INIT_ALL_DATA_QUERY;
+      queryAllOPCUAData();
     }
   }
 
@@ -509,14 +517,8 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
   @Override
   public void run() {
     opcuaInit();
-    if (queryAllNodesAtStartup) {
-      currentOPCUAStatus = OPCUAStatus.OPCUA_INIT_ALL_DATA_QUERY;
-      queryAllOPCUAData();
-    }
     /* Enter our main loop */
-    while (isRunningAndEnabled()) {
-      currentOPCUAStatus = OPCUAStatus.OPCUA_OK;
-    }
+    while (isRunningAndEnabled()) {}
   }
 
   /**
@@ -687,7 +689,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
       } catch (UaException e) {
         // TODO Auto-generated catch block
-        e.printStackTrace();
+        internalLogger.warn(e.toString());
         continue;
       }
     }
@@ -1422,6 +1424,14 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     return pType;
   }
 
+  /**
+   * Subscribe to OPCUA events as per the
+   * spec:https://reference.opcfoundation.org/Core/Part5/v104/docs/6.4.2
+   *
+   * @param client
+   * @throws InterruptedException
+   * @throws ExecutionException
+   */
   private void subscribeToEvents(OpcUaClient client)
       throws InterruptedException, ExecutionException {
     // create a subscription and a monitored item
@@ -1533,34 +1543,38 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     OPCUAStatusParam =
         sysParamService.createEnumeratedSystemParameter(
             linkName + "/OPCUAStatusParam",
-            OPCUAStatus.class,
+            OPCUAINITStatus.class,
             "The current status of OPCUA client");
     EnumeratedParameterType spLinkStatusType =
         (EnumeratedParameterType) OPCUAStatusParam.getParameterType();
     spLinkStatusType
-        .enumValue(OPCUAStatus.OPCUA_INIT_CONFIG.name())
+        .enumValue(OPCUAINITStatus.OPCUA_INIT_CONFIG.name())
         .setDescription(
             "This link is in the configuration stage(Configuring OPCUA parameters such as certificates)");
     spLinkStatusType
-        .enumValue(OPCUAStatus.OPCUA_INIT_TREE.name())
+        .enumValue(OPCUAINITStatus.OPCUA_INIT_TREE.name())
         .setDescription(
             "The link is parsing the OPCUA Tree and mapping them to PVs."
                 + " Depending on configuration, this can take a while.");
+
     spLinkStatusType
-        .enumValue(OPCUAStatus.OPCUA_INIT_EVENTS.name())
+        .enumValue(OPCUAINITStatus.OPCUA_INIT_TREE_FAILED.name())
+        .setDescription("The initial parsing of configured nodes failed.");
+    spLinkStatusType
+        .enumValue(OPCUAINITStatus.OPCUA_INIT_EVENTS.name())
         .setDescription("The link is configuring and subscribing to OPCUA events");
     spLinkStatusType
-        .enumValue(OPCUAStatus.OPCUA_INIT_DATA_SUBSCRIPTION.name())
+        .enumValue(OPCUAINITStatus.OPCUA_INIT_DATA_SUBSCRIPTION.name())
         .setDescription(
             "The link is creating subscriptions for each node that was parsed from the tree"
                 + "that has a Value attribute.");
     spLinkStatusType
-        .enumValue(OPCUAStatus.OPCUA_INIT_ALL_DATA_QUERY.name())
+        .enumValue(OPCUAINITStatus.OPCUA_INIT_ALL_DATA_QUERY.name())
         .setDescription(
             "The link is querying all attributes of all parsed nodes."
                 + "This is can be configured to be done at startup.");
     spLinkStatusType
-        .enumValue(OPCUAStatus.OPCUA_OK.name())
+        .enumValue(OPCUAINITStatus.OPCUA_INIT_OK.name())
         .setDescription(
             "The link is done with all OPCUA initialization. It is in an usable state.");
 
