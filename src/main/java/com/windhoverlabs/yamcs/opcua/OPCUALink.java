@@ -383,7 +383,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
       subscribeToEvents(client);
 
     } catch (Exception e) {
-      e.printStackTrace();
+      internalLogger.warn(e.toString());
       currentOPCUAStatus = OPCUAINITStatus.OPCUA_INIT_TREE_FAILED;
       return;
     }
@@ -391,7 +391,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
       currentOPCUAStatus = OPCUAINITStatus.OPCUA_INIT_DATA_SUBSCRIPTION;
       createOPCUASubscriptions();
     } catch (Exception e) {
-      e.printStackTrace();
+      internalLogger.warn(e.toString());
       return;
     }
     if (queryAllNodesAtStartup) {
@@ -474,7 +474,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     try {
       opcuaClientConnect();
     } catch (Exception e) {
-      e.printStackTrace();
+      internalLogger.warn(e.toString());
       linkStatus = Status.FAILED;
       notifyFailed(e);
       return;
@@ -503,8 +503,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     try {
       client.disconnect().get();
     } catch (InterruptedException | ExecutionException e) {
-      // TODO Auto-generated catch block
-      e.printStackTrace();
+      internalLogger.warn(e.toString());
     }
     if (thread != null) {
       thread.interrupt();
@@ -921,8 +920,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
       localizedDisplayName =
           (LocalizedText) (node.readAttribute(AttributeId.DisplayName).getValue().getValue());
     } catch (UaException e) {
-      // TODO Auto-generated catch block
-      e.printStackTrace();
+      internalLogger.warn(e.toString());
     }
     String opcuaTranslatedQName =
         qualifiedName(
@@ -1134,8 +1132,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     try {
       opcuaSubscription = ManagedSubscription.create(client, publishInterval);
     } catch (UaException e) {
-      // TODO Auto-generated catch block
-      e.printStackTrace();
+      internalLogger.warn(e.toString());
     }
     opcuaSubscription.addDataChangeListener(
         (items, values) -> {
