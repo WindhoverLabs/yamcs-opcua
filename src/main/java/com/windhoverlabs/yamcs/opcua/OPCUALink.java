@@ -223,7 +223,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
   /* System parameters*/
 
-  private Parameter OPCUAStatusParam;
+  private Parameter OPCUAInitStatusParam;
   private OPCUAINITStatus currentOPCUAStatus;
   private Parameter OPCUAActiveSubsParam;
   private AtomicLong OPCUAActiveSubs = new AtomicLong(0);
@@ -1536,13 +1536,13 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
   @Override
   public void setupSystemParameters(SystemParametersService sysParamService) {
     super.setupSystemParameters(sysParamService);
-    OPCUAStatusParam =
+    OPCUAInitStatusParam =
         sysParamService.createEnumeratedSystemParameter(
-            linkName + "/OPCUAStatusParam",
+            linkName + "/OPCUAInitStatusParam",
             OPCUAINITStatus.class,
-            "The current status of OPCUA client");
+            "The current initialization status of OPCUA client");
     EnumeratedParameterType spLinkStatusType =
-        (EnumeratedParameterType) OPCUAStatusParam.getParameterType();
+        (EnumeratedParameterType) OPCUAInitStatusParam.getParameterType();
     spLinkStatusType
         .enumValue(OPCUAINITStatus.OPCUA_INIT_CONFIG.name())
         .setDescription(
@@ -1588,7 +1588,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
     list.add(
         org.yamcs.parameter.SystemParametersService.getPV(
-            OPCUAStatusParam, time, currentOPCUAStatus));
+            OPCUAInitStatusParam, time, currentOPCUAStatus));
     list.add(
         org.yamcs.parameter.SystemParametersService.getPV(
             OPCUAActiveSubsParam, time, OPCUAActiveSubs.get()));
