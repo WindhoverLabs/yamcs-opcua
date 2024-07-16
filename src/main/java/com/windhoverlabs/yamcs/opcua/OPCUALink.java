@@ -394,13 +394,12 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
       e.printStackTrace();
       return;
     }
-
-    currentOPCUAStatus = OPCUAINITStatus.OPCUA_INIT_OK;
-
     if (queryAllNodesAtStartup) {
       currentOPCUAStatus = OPCUAINITStatus.OPCUA_INIT_ALL_DATA_QUERY;
       queryAllOPCUAData();
     }
+
+    currentOPCUAStatus = OPCUAINITStatus.OPCUA_INIT_OK;
   }
 
   private void exportXTCE() throws IOException {
