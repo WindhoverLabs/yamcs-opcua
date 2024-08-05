@@ -1081,7 +1081,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     internalLogger.info("Connecting to OPCUA server...");
     client.connect().get();
 
-    if (getAction(startAction.getId()) != null) {
+    if (getAction(startAction.getId()) == null) {
       addAction(startAction);
     }
     startAction.setEnabled(true);
