@@ -442,7 +442,12 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
   @Override
   public void doDisable() {
-    /* If the thread is created, interrupt it. */
+
+    try {
+      client.disconnect().get();
+    } catch (InterruptedException | ExecutionException e) {
+      internalLogger.warn(e.toString());
+    }
     if (thread != null) {
       thread.interrupt();
     }
@@ -452,6 +457,27 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
   @Override
   public void doEnable() {
+    try {
+      opcuaClientConnect();
+    } catch (Exception e) {
+      internalLogger.warn(e.toString());
+      linkStatus = Status.FAILED;
+      notifyFailed(e);
+      return;
+    }
+
+    startAction.addChangeListener(
+        () -> {
+          /**
+           * TODO:Might be useful if we want turn off any functionality when the action is disabled
+           * for instance..
+           */
+        });
+
+    /* Create and start the new thread. */
+    thread = new Thread(this);
+    thread.setName(this.getClass().getSimpleName() + "-" + linkName);
+    thread.start();
     linkStatus = Status.OK;
   }
 
@@ -471,29 +497,9 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
   @Override
   protected void doStart() {
-    try {
-      opcuaClientConnect();
-    } catch (Exception e) {
-      internalLogger.warn(e.toString());
-      linkStatus = Status.FAILED;
-      notifyFailed(e);
-      return;
-    }
     if (!isDisabled()) {
       doEnable();
     }
-    startAction.addChangeListener(
-        () -> {
-          /**
-           * TODO:Might be useful if we want turn off any functionality when the action is disabled
-           * for instance..
-           */
-        });
-
-    /* Create and start the new thread. */
-    thread = new Thread(this);
-    thread.setName(this.getClass().getSimpleName() + "-" + linkName);
-    thread.start();
 
     notifyStarted();
   }
@@ -898,9 +904,8 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
         if (mdb.getParameter(p.getQualifiedName()) == null) {
           log.debug("Adding OPCUA object as parameter to mdb:{}", p.getQualifiedName());
           mdb.addParameter(p, true);
-
-          nodeIDToParamsMap.put(new NodeIDAttrPair(node.getNodeId(), attr), (VariableParam) p);
         }
+        nodeIDToParamsMap.put(new NodeIDAttrPair(node.getNodeId(), attr), (VariableParam) p);
       }
     }
   }
@@ -1076,7 +1081,9 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     internalLogger.info("Connecting to OPCUA server...");
     client.connect().get();
 
-    addAction(startAction);
+    if (getAction(startAction.getId()) != null) {
+      addAction(startAction);
+    }
     startAction.setEnabled(true);
   }
 
