@@ -43,7 +43,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
-import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -530,18 +529,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
    * for querying data from the OPCUA server once, data such as browse names, NodeIds, etc.
    */
   private void queryAllOPCUAData() {
-    TupleDefinition tdef = gftdef.copy();
-    List<Object> cols = new ArrayList<>(4 + nodeIDToParamsMap.keySet().size());
-
-    tdef = gftdef.copy();
-    long gentime = timeService.getMissionTime();
-    cols.add(gentime);
-    cols.add(parametersNamespace);
-    cols.add(0);
-    cols.add(gentime);
-
-    int columnCount = 0;
-
     Set<NodeId> nodeSet = new HashSet<NodeId>();
     /**
      * NOTE:This is super inefficient... The reason we collect these nodeIDs in a set is because
@@ -573,109 +560,154 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
                 continue;
               }
 
+              TupleDefinition tdef = gftdef.copy();
+              List<Object> cols = new ArrayList<>(4 + 1);
+              //            FIXME: Add leap seconds.... as config or get it from YAMCS API.
+
+              if (node.readAttribute(attr).getValue().isNull()) {
+                internalLogger.warn("{} since the data value is null", p);
+                continue;
+              }
+
+              long gentime =
+                  node.readAttribute(attr)
+                      .getSourceTime()
+                      .getJavaInstant()
+                      .plus(37, ChronoUnit.SECONDS)
+                      .toEpochMilli();
+              cols.add(gentime);
+              cols.add(parametersNamespace);
+              cols.add(0);
+              long rectime = timeService.getMissionTime();
+              cols.add(rectime);
+
               switch (p.getParameterType().getValueType()) {
                 case BOOLEAN:
                   {
                     Boolean value = true;
                     if (node.readAttribute(attr).getValue().isNull()) {
-                      //                      value = "NULL";
+                      internalLogger.warn(
+                          "node {} has a Null variant. Ignoring and will not be pushed to stream.",
+                          node);
+                      continue;
                     } else {
                       value = (Boolean) node.readAttribute(attr).getValue().getValue();
                     }
 
                     tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
-                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
+                    cols.add(getPV(p, gentime, value));
                   }
                   break;
                 case DOUBLE:
                   {
                     Number value = 0;
                     if (node.readAttribute(attr).getValue().isNull()) {
-                      internalLogger.warn("node {} has a Null variant.", node);
+                      internalLogger.warn(
+                          "node {} has a Null variant. Ignoring and will not be pushed to stream.",
+                          node);
+                      continue;
                     } else {
                       value = (Number) node.readAttribute(attr).getValue().getValue();
                     }
 
                     tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
-                    cols.add(getPV(p, Instant.now().toEpochMilli(), value.doubleValue()));
+                    cols.add(getPV(p, gentime, value.doubleValue()));
                   }
                   break;
                 case FLOAT:
                   {
                     Number value = 0;
                     if (node.readAttribute(attr).getValue().isNull()) {
-                      internalLogger.warn("node {} has a Null variant.", node);
+                      internalLogger.warn(
+                          "node {} has a Null variant. Ignoring and will not be pushed to stream.",
+                          node);
+                      continue;
                     } else {
                       value = (Number) node.readAttribute(attr).getValue().getValue();
                     }
 
                     tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
-                    cols.add(getPV(p, Instant.now().toEpochMilli(), value.floatValue()));
+                    cols.add(getPV(p, gentime, value.floatValue()));
                   }
                   break;
                 case SINT32:
                   {
                     Number value = 0;
                     if (node.readAttribute(attr).getValue().isNull()) {
-                      internalLogger.warn("node {} has a Null variant.", node);
+                      internalLogger.warn(
+                          "node {} has a Null variant. Ignoring and will not be pushed to stream.",
+                          node);
+                      continue;
                     } else {
                       value = (Number) node.readAttribute(attr).getValue().getValue();
                     }
 
                     tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
-                    cols.add(getPV(p, Instant.now().toEpochMilli(), value.intValue()));
+                    cols.add(getPV(p, gentime, value.intValue()));
                   }
                   break;
                 case SINT64:
                   {
                     Number value = 0;
                     if (node.readAttribute(attr).getValue().isNull()) {
-                      internalLogger.warn("node {} has a Null variant.", node);
+                      internalLogger.warn(
+                          "node {} has a Null variant. Ignoring and will not be pushed to stream.",
+                          node);
+                      continue;
                     } else {
                       value = (Number) node.readAttribute(attr).getValue().getValue();
                     }
 
                     tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
-                    cols.add(getPV(p, Instant.now().toEpochMilli(), value.longValue()));
+                    cols.add(getPV(p, gentime, value.longValue()));
                   }
                   break;
                 case STRING:
                   {
                     String value = "";
                     if (node.readAttribute(attr).getValue().isNull()) {
-                      value = "NULL";
+                      internalLogger.warn(
+                          "node {} has a Null variant. Ignoring and will not be pushed to stream.",
+                          node);
+                      continue;
                     } else {
                       value = node.readAttribute(attr).getValue().getValue().toString();
                     }
 
                     tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
-                    cols.add(getPV(p, Instant.now().toEpochMilli(), value));
+                    cols.add(getPV(p, gentime, value));
                   }
                   break;
                 case UINT32:
                   {
                     Number value = 0;
                     if (node.readAttribute(attr).getValue().isNull()) {
-                      internalLogger.warn("node {} has a Null variant.", node);
+                      internalLogger.warn(
+                          "node {} has a Null variant. Ignoring and will not be pushed to stream.",
+                          node);
+                      continue;
                     } else {
                       value = (Number) node.readAttribute(attr).getValue().getValue();
                     }
 
                     tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
-                    cols.add(getPV(p, Instant.now().toEpochMilli(), value.longValue()));
+                    cols.add(getPV(p, gentime, value.longValue()));
                   }
                   break;
                 case UINT64:
                   {
                     Number value = 0;
                     if (node.readAttribute(attr).getValue().isNull()) {
-                      internalLogger.warn("node {} has a Null variant.", node);
+                      internalLogger.warn(
+                          "node {} has a Null variant. Ignoring and will not be pushed to stream.",
+                          node);
+                      continue;
                     } else {
                       value = (Number) node.readAttribute(attr).getValue().getValue();
                     }
 
                     tdef.addColumn(p.getQualifiedName(), DataType.PARAMETER_VALUE);
-                    cols.add(getPV(p, Instant.now().toEpochMilli(), value.longValue()));
+                    cols.add(getPV(p, gentime, value.longValue()));
                   }
                   break;
                 default:
@@ -684,7 +716,8 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
               log.debug("Pushing {} to stream", p.toString());
 
-              columnCount++;
+              pushTuple(tdef, cols);
+              inCount.getAndAdd(1);
             }
             break;
           default:
@@ -697,9 +730,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
         continue;
       }
     }
-
-    pushTuple(tdef, cols);
-    inCount.getAndAdd(columnCount);
   }
 
   private synchronized void pushTuple(TupleDefinition tdef, List<Object> cols) {
@@ -765,38 +795,42 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     return pType;
   }
 
-  public static ParameterValue getNewPv(Parameter parameter, long time) {
+  public ParameterValue getNewPv(Parameter parameter, long time) {
     ParameterValue pv = new ParameterValue(parameter);
-    pv.setAcquisitionTime(time);
+    pv.setAcquisitionTime(YamcsServer.getTimeService(yamcsInstance).getMissionTime());
     pv.setGenerationTime(time);
     return pv;
   }
 
-  public static ParameterValue getPV(Parameter parameter, long time, String v) {
+  public ParameterValue getPV(Parameter parameter, long time, String v) {
     ParameterValue pv = getNewPv(parameter, time);
     pv.setEngValue(ValueUtility.getStringValue(v));
+    pv.setRawValue(ValueUtility.getStringValue(v));
     return pv;
   }
 
-  public static ParameterValue getPV(Parameter parameter, long time, double v) {
+  public ParameterValue getPV(Parameter parameter, long time, double v) {
     ParameterValue pv = getNewPv(parameter, time);
     pv.setEngValue(ValueUtility.getDoubleValue(v));
+    pv.setRawValue(ValueUtility.getDoubleValue(v));
     return pv;
   }
 
-  public static ParameterValue getPV(Parameter parameter, long time, float v) {
+  public ParameterValue getPV(Parameter parameter, long time, float v) {
     ParameterValue pv = getNewPv(parameter, time);
     pv.setEngValue(ValueUtility.getFloatValue(v));
+    pv.setRawValue(ValueUtility.getFloatValue(v));
     return pv;
   }
 
-  public static ParameterValue getPV(Parameter parameter, long time, boolean v) {
+  public ParameterValue getPV(Parameter parameter, long time, boolean v) {
     ParameterValue pv = getNewPv(parameter, time);
     pv.setEngValue(ValueUtility.getBooleanValue(v));
+    pv.setRawValue(ValueUtility.getBooleanValue(v));
     return pv;
   }
 
-  public static ParameterValue getPV(Parameter parameter, long time, long v) {
+  public ParameterValue getPV(Parameter parameter, long time, long v) {
     ParameterValue pv = getNewPv(parameter, time);
     pv.setEngValue(ValueUtility.getSint64Value(v));
     return pv;
@@ -1169,7 +1203,8 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
             cols.add(gentime);
             cols.add(parametersNamespace);
             cols.add(0);
-            cols.add(gentime);
+            long rectime = timeService.getMissionTime();
+            cols.add(rectime);
 
             /**
              * TODO:Not sure if this is the best way to do this since the aggregate values will be
