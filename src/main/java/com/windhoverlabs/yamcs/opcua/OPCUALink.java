@@ -55,6 +55,9 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import org.eclipse.milo.opcua.sdk.client.OpcUaClient;
@@ -206,6 +209,18 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
   protected AtomicLong inCount = new AtomicLong(0);
 
+  // realtimeCount is the same as inCount, except that it cannot be reset by users.
+  //  Used specifically for deciding subStrikeCount
+  protected AtomicLong realtimeCount = new AtomicLong(0);
+
+  protected AtomicLong subStrikeCount = new AtomicLong(0);
+
+  protected AtomicLong lastRealtimeCount = new AtomicLong(0);
+
+  protected int subStrikeCountThreshold;
+
+  private long subStrikeCountCheckTimeoutSecs;
+
   private Status linkStatus = Status.OK;
 
   /* Configuration Parameters */
@@ -225,7 +240,17 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
   private Parameter OPCUAInitStatusParam;
   private OPCUAINITStatus currentOPCUAStatus;
   private Parameter OPCUAActiveSubsParam;
+  private Parameter realtimeCountParam;
+  private Parameter lastRealtimeCountParam;
+
+  private Parameter subStrikeCountCheckTimeoutSecsParam;
+
+  private Parameter subStrikeCountParam;
+  private Parameter subStrikeCountThresholdParam;
   private AtomicLong OPCUAActiveSubs = new AtomicLong(0);
+
+  private int reconnectCount = 0;
+  private Parameter reconnectCountParam;
 
   LinkAction startAction =
       new LinkAction("query_all", "Query All OPCUA Server Data") {
@@ -249,6 +274,8 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
         }
       };
 
+  private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+
   public OPCUAINITStatus getCurrentOPCUAStatus() {
     return currentOPCUAStatus;
   }
@@ -266,6 +293,14 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     spec.addOption("xtceOutputFile", OptionType.STRING).withRequired(true);
     spec.addOption("parametersNamespace", OptionType.STRING).withRequired(true);
     spec.addOption("publishInterval", OptionType.INTEGER).withRequired(true);
+    spec.addOption("subStrikeCountThreshold", OptionType.INTEGER)
+        .withDefault(3)
+        .withRequired(false);
+
+    spec.addOption("subStrikeCountCheckTimeoutSecs", OptionType.INTEGER)
+        .withDefault(15)
+        .withRequired(false);
+
     spec.addOption("queryAllNodesAtStartup", OptionType.BOOLEAN).withRequired(false);
 
     Spec rootNodeIDSpec = new Spec();
@@ -314,6 +349,10 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     readNodePathsConfig(config);
 
     outputFile = config.getString("xtceOutputFile");
+
+    subStrikeCountThreshold = config.getInt("subStrikeCountThreshold");
+
+    subStrikeCountCheckTimeoutSecs = config.getInt("subStrikeCountCheckTimeoutSecs");
   }
 
   private void readOPCUAConfig(YConfiguration config) {
@@ -378,8 +417,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
       browseOPCUATree(client);
       currentOPCUAStatus = OPCUAINITStatus.OPCUA_INIT_GENERATE_XTCE;
       exportXTCE();
-      currentOPCUAStatus = OPCUAINITStatus.OPCUA_INIT_EVENTS;
-      subscribeToEvents(client);
 
     } catch (Exception e) {
       internalLogger.warn(e.toString());
@@ -387,6 +424,8 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
       return;
     }
     try {
+      currentOPCUAStatus = OPCUAINITStatus.OPCUA_INIT_EVENTS;
+      subscribeToEvents(client);
       currentOPCUAStatus = OPCUAINITStatus.OPCUA_INIT_DATA_SUBSCRIPTION;
       createOPCUASubscriptions();
     } catch (Exception e) {
@@ -521,7 +560,120 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
   public void run() {
     opcuaInit();
     /* Enter our main loop */
+
+    scheduleReconnectThread();
+
     while (isRunningAndEnabled()) {}
+  }
+
+  private void scheduleReconnectThread() {
+    scheduler.scheduleAtFixedRate(
+        () -> {
+          if (realtimeCount.get() > lastRealtimeCount.get()) {
+            subStrikeCount.set(0);
+          } else {
+            subStrikeCount.getAndAdd(1);
+          }
+
+          if (subStrikeCount.intValue() > subStrikeCountThreshold) {
+            org.yamcs.yarch.protobuf.Db.Event ev =
+                Event.newBuilder()
+                    .setGenerationTime(YamcsServer.getTimeService(yamcsInstance).getMissionTime())
+                    .setGenerationTime(YamcsServer.getTimeService(yamcsInstance).getMissionTime())
+                    .setSource(this.linkName)
+                    .setType(this.linkName)
+                    .setMessage(
+                        String.format(
+                            "Subscription strike count(%d) exceeded currently configured threshold(%d)",
+                            subStrikeCount.intValue(), subStrikeCountThreshold))
+                    .setSeverity(EventSeverity.ERROR)
+                    .build();
+            eventProducer.sendEvent(ev);
+
+            if (currentOPCUAStatus == OPCUAINITStatus.OPCUA_INIT_DATA_SUBSCRIPTION) {
+              //            	We could be in the middle of a reconnect...
+              return;
+            }
+
+            linkStatus = Status.UNAVAIL;
+
+            //            Reconnect to realtime data
+            try {
+              ev =
+                  Event.newBuilder()
+                      .setGenerationTime(YamcsServer.getTimeService(yamcsInstance).getMissionTime())
+                      .setGenerationTime(YamcsServer.getTimeService(yamcsInstance).getMissionTime())
+                      .setSource(this.linkName)
+                      .setType(this.linkName)
+                      .setMessage(String.format("Disconnecting"))
+                      .setSeverity(EventSeverity.ERROR)
+                      .build();
+              eventProducer.sendEvent(ev);
+              client.disconnect().get();
+            } catch (InterruptedException | ExecutionException e) {
+              internalLogger.warn(e.toString());
+            }
+
+            try {
+              opcuaClientConnect();
+            } catch (Exception e) {
+              internalLogger.warn(e.toString());
+              linkStatus = Status.FAILED;
+
+              ev =
+                  Event.newBuilder()
+                      .setGenerationTime(YamcsServer.getTimeService(yamcsInstance).getMissionTime())
+                      .setGenerationTime(YamcsServer.getTimeService(yamcsInstance).getMissionTime())
+                      .setSource(this.linkName)
+                      .setType(this.linkName)
+                      .setMessage(String.format("Reconnect failed."))
+                      .setSeverity(EventSeverity.ERROR)
+                      .build();
+              eventProducer.sendEvent(ev);
+              notifyFailed(e);
+              return;
+            }
+
+            try {
+              ev =
+                  Event.newBuilder()
+                      .setGenerationTime(YamcsServer.getTimeService(yamcsInstance).getMissionTime())
+                      .setGenerationTime(YamcsServer.getTimeService(yamcsInstance).getMissionTime())
+                      .setSource(this.linkName)
+                      .setType(this.linkName)
+                      .setMessage(String.format("Resubscribing to events and realtime values."))
+                      .setSeverity(EventSeverity.INFO)
+                      .build();
+              eventProducer.sendEvent(ev);
+              subscribeToEvents(client);
+              createOPCUASubscriptions();
+              linkStatus = Status.OK;
+            } catch (Exception e) {
+
+              ev =
+                  Event.newBuilder()
+                      .setGenerationTime(YamcsServer.getTimeService(yamcsInstance).getMissionTime())
+                      .setGenerationTime(YamcsServer.getTimeService(yamcsInstance).getMissionTime())
+                      .setSource(this.linkName)
+                      .setType(this.linkName)
+                      .setMessage(
+                          String.format("Resubscribing failed. Exception info" + e.toString()))
+                      .setSeverity(EventSeverity.ERROR)
+                      .build();
+              eventProducer.sendEvent(ev);
+
+              internalLogger.warn(e.toString());
+              return;
+            }
+
+            reconnectCount++;
+          }
+
+          lastRealtimeCount.set(realtimeCount.get());
+        },
+        1,
+        subStrikeCountCheckTimeoutSecs,
+        TimeUnit.SECONDS);
   }
 
   /**
@@ -718,6 +870,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
               pushTuple(tdef, cols);
               inCount.getAndAdd(1);
+              realtimeCount.getAndAdd(1);
             }
             break;
           default:
@@ -1061,6 +1214,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
   }
 
   private void createOPCUASubscriptions() {
+    currentOPCUAStatus = OPCUAINITStatus.OPCUA_INIT_DATA_SUBSCRIPTION;
     createDataChangeListener();
     Set<NodeId> nodeSet = new HashSet<NodeId>();
     /**
@@ -1103,6 +1257,8 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     } catch (UaException e) {
       internalLogger.warn(e.toString());
     }
+
+    currentOPCUAStatus = OPCUAINITStatus.OPCUA_INIT_OK;
   }
 
   /**
@@ -1327,6 +1483,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
               pushTuple(tdef, cols);
 
               inCount.getAndAdd(1);
+              realtimeCount.getAndAdd(1);
             } else {
               // TODO:Add some type emptyValue count for OPS.
               log.warn(
@@ -1621,6 +1778,41 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
             linkName + "/OPCUAActiveSubs",
             Type.UINT64,
             "The total number of active opcua subscriptions");
+
+    realtimeCountParam =
+        sysParamService.createSystemParameter(
+            linkName + "/RealtimeCount",
+            Type.UINT64,
+            "The total number of realtime count(used for sub strike counts)");
+
+    lastRealtimeCountParam =
+        sysParamService.createSystemParameter(
+            linkName + "/LastRealtimeCount",
+            Type.UINT64,
+            "The total number of realtime counts last captured(used for sub strike counts)");
+
+    subStrikeCountThresholdParam =
+        sysParamService.createSystemParameter(
+            linkName + "/SubStrikeCountThreshold",
+            Type.UINT64,
+            "Configured strike count threshold. If current strike count exceeds this value, users will be notified via events"
+                + " and a reconnect will be attempted.");
+
+    subStrikeCountParam =
+        sysParamService.createSystemParameter(
+            linkName + "/SubStrikeCount", Type.UINT64, "Current subscription strike count.");
+
+    subStrikeCountCheckTimeoutSecsParam =
+        sysParamService.createSystemParameter(
+            linkName + "/SubStrikeCountCheckTimeoutSecs",
+            Type.UINT64,
+            "Timeout(in seconds) between strike count checks.");
+
+    reconnectCountParam =
+        sysParamService.createSystemParameter(
+            linkName + "/ReconnectCount",
+            Type.UINT64,
+            "Successful reconnect count, after sub strike count failures.");
   }
 
   @Override
@@ -1634,6 +1826,29 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     list.add(
         org.yamcs.parameter.SystemParametersService.getPV(
             OPCUAActiveSubsParam, time, OPCUAActiveSubs.get()));
+
+    list.add(
+        org.yamcs.parameter.SystemParametersService.getPV(
+            realtimeCountParam, time, realtimeCount.get()));
+    list.add(
+        org.yamcs.parameter.SystemParametersService.getPV(
+            lastRealtimeCountParam, time, lastRealtimeCount.get()));
+
+    list.add(
+        org.yamcs.parameter.SystemParametersService.getPV(
+            subStrikeCountThresholdParam, time, subStrikeCountThreshold));
+
+    list.add(
+        org.yamcs.parameter.SystemParametersService.getPV(
+            subStrikeCountParam, time, subStrikeCount.get()));
+
+    list.add(
+        org.yamcs.parameter.SystemParametersService.getPV(
+            subStrikeCountCheckTimeoutSecsParam, time, subStrikeCountCheckTimeoutSecs));
+
+    list.add(
+        org.yamcs.parameter.SystemParametersService.getPV(
+            reconnectCountParam, time, reconnectCount));
     try {
       super.collectSystemParameters(time, list);
     } catch (Exception e) {
