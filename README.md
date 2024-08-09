@@ -14,6 +14,8 @@
     parametersNamespace: "/instruments/tvac"
     queryAllNodesAtStartup: true # defaults to false
     publishInterval: 100
+    subStrikeCountCheckTimeoutSecs: 15
+    subStrikeCountThreshold: 1
     nodePaths:
       - path: "2:HelloWorld,2:MyObject,2:Bar"
         rootNodeID: #Link starts browsing at this node
