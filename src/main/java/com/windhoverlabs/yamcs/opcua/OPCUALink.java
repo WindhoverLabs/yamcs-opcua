@@ -691,6 +691,17 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
       nodeSet.add(pair.nodeID);
     }
 
+    TupleDefinition tdef = gftdef.copy();
+
+    List<Object> cols = new ArrayList<>(4 + nodeIDToParamsMap.keySet().size());
+
+    tdef = gftdef.copy();
+    long gentime = timeService.getMissionTime();
+    cols.add(gentime);
+    cols.add(parametersNamespace);
+    cols.add(0);
+    cols.add(gentime);
+
     for (NodeId nId : nodeSet) {
       UaNode node;
 
@@ -712,26 +723,24 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
                 continue;
               }
 
-              TupleDefinition tdef = gftdef.copy();
-              List<Object> cols = new ArrayList<>(4 + 1);
               //            FIXME: Add leap seconds.... as config or get it from YAMCS API.
 
               if (node.readAttribute(attr).getValue().isNull()) {
-                internalLogger.warn("{} since the data value is null", p);
+                internalLogger.warn("{} Ignored since the data value is null", p);
                 continue;
               }
 
-              long gentime =
+              gentime =
                   node.readAttribute(attr)
                       .getSourceTime()
                       .getJavaInstant()
                       .plus(37, ChronoUnit.SECONDS)
                       .toEpochMilli();
-              cols.add(gentime);
-              cols.add(parametersNamespace);
-              cols.add(0);
-              long rectime = timeService.getMissionTime();
-              cols.add(rectime);
+              //              cols.add(gentime);
+              //              cols.add(parametersNamespace);
+              //              cols.add(0);
+              //              long rectime = timeService.getMissionTime();
+              //              cols.add(rectime);
 
               switch (p.getParameterType().getValueType()) {
                 case BOOLEAN:
@@ -868,7 +877,8 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
               log.debug("Pushing {} to stream", p.toString());
 
-              pushTuple(tdef, cols);
+              internalLogger.info(String.format("Pushing %s to stream", p.toString()));
+
               inCount.getAndAdd(1);
               realtimeCount.getAndAdd(1);
             }
@@ -883,6 +893,8 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
         continue;
       }
     }
+
+    pushTuple(tdef, cols);
   }
 
   private synchronized void pushTuple(TupleDefinition tdef, List<Object> cols) {
