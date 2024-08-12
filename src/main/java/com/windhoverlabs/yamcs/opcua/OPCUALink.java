@@ -833,6 +833,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
   public ParameterValue getPV(Parameter parameter, long time, long v) {
     ParameterValue pv = getNewPv(parameter, time);
     pv.setEngValue(ValueUtility.getSint64Value(v));
+    pv.setRawValue(ValueUtility.getSint64Value(v));
     return pv;
   }
 
