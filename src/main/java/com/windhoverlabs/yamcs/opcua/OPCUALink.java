@@ -223,6 +223,8 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
   private Status linkStatus = Status.OK;
 
+  private boolean enabledAtStartup = false;
+
   /* Configuration Parameters */
 
   private String discoverURL;
@@ -238,7 +240,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
   /* System parameters*/
 
   private Parameter OPCUAInitStatusParam;
-  private OPCUAINITStatus currentOPCUAStatus;
+  private OPCUAINITStatus currentOPCUAStatus = OPCUAINITStatus.OPCUA_INIT_CONFIG;
   private Parameter OPCUAActiveSubsParam;
   private Parameter realtimeCountParam;
   private Parameter lastRealtimeCountParam;
@@ -262,6 +264,28 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
                   (Supplier<Integer>)
                       () -> {
                         queryAllOPCUAData();
+
+                        return 0;
+                      })
+              .whenComplete(
+                  (vaue, e) -> {
+                    internalLogger.info("query_all action Complete");
+                  });
+
+          return jsonObject;
+        }
+      };
+
+  LinkAction reconnectAction =
+      new LinkAction("reconnect", "Reconnect to server.") {
+        @Override
+        public JsonObject execute(Link link, JsonObject jsonObject) {
+
+          internalLogger.info("Executing query_all action");
+          CompletableFuture.supplyAsync(
+                  (Supplier<Integer>)
+                      () -> {
+                        reconnect();
 
                         return 0;
                       })
@@ -302,6 +326,8 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
         .withRequired(false);
 
     spec.addOption("queryAllNodesAtStartup", OptionType.BOOLEAN).withRequired(false);
+
+    spec.addOption("enabledAtStartup", OptionType.BOOLEAN).withRequired(true);
 
     Spec rootNodeIDSpec = new Spec();
 
@@ -353,6 +379,13 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     subStrikeCountThreshold = config.getInt("subStrikeCountThreshold");
 
     subStrikeCountCheckTimeoutSecs = config.getInt("subStrikeCountCheckTimeoutSecs");
+
+    enabledAtStartup = config.getBoolean("enabledAtStartup");
+
+    if (!enabledAtStartup) {
+      linkStatus = Status.DISABLED;
+      super.disable();
+    }
   }
 
   private void readOPCUAConfig(YConfiguration config) {
@@ -482,7 +515,9 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
   public void doDisable() {
 
     try {
-      client.disconnect().get();
+      if (client != null) {
+        client.disconnect().get();
+      }
     } catch (InterruptedException | ExecutionException e) {
       internalLogger.warn(e.toString());
     }
@@ -495,6 +530,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
   @Override
   public void doEnable() {
+    internalLogger.warn("doEnable********88");
     try {
       opcuaClientConnect();
     } catch (Exception e) {
@@ -561,14 +597,91 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     opcuaInit();
     /* Enter our main loop */
 
-    scheduleReconnectThread();
+    scheduleStrikeCountThread();
 
     while (isRunningAndEnabled()) {}
   }
 
-  private void scheduleReconnectThread() {
+  private void reconnect() {
+    //            Reconnect to realtime data
+    try {
+      org.yamcs.yarch.protobuf.Db.Event ev =
+          Event.newBuilder()
+              .setGenerationTime(YamcsServer.getTimeService(yamcsInstance).getMissionTime())
+              .setGenerationTime(YamcsServer.getTimeService(yamcsInstance).getMissionTime())
+              .setSource(this.linkName)
+              .setType(this.linkName)
+              .setMessage(String.format("Disconnecting"))
+              .setSeverity(EventSeverity.ERROR)
+              .build();
+      eventProducer.sendEvent(ev);
+      client.disconnect().get();
+    } catch (InterruptedException | ExecutionException e) {
+      internalLogger.warn(e.toString());
+    }
+
+    try {
+      opcuaClientConnect();
+    } catch (Exception e) {
+      internalLogger.warn(e.toString());
+      linkStatus = Status.FAILED;
+
+      org.yamcs.yarch.protobuf.Db.Event ev =
+          Event.newBuilder()
+              .setGenerationTime(YamcsServer.getTimeService(yamcsInstance).getMissionTime())
+              .setGenerationTime(YamcsServer.getTimeService(yamcsInstance).getMissionTime())
+              .setSource(this.linkName)
+              .setType(this.linkName)
+              .setMessage(String.format("Reconnect failed."))
+              .setSeverity(EventSeverity.ERROR)
+              .build();
+      eventProducer.sendEvent(ev);
+      notifyFailed(e);
+      return;
+    }
+
+    try {
+      org.yamcs.yarch.protobuf.Db.Event ev =
+          Event.newBuilder()
+              .setGenerationTime(YamcsServer.getTimeService(yamcsInstance).getMissionTime())
+              .setGenerationTime(YamcsServer.getTimeService(yamcsInstance).getMissionTime())
+              .setSource(this.linkName)
+              .setType(this.linkName)
+              .setMessage(String.format("Resubscribing to events and realtime values."))
+              .setSeverity(EventSeverity.INFO)
+              .build();
+      eventProducer.sendEvent(ev);
+      subscribeToEvents(client);
+      createOPCUASubscriptions();
+      linkStatus = Status.OK;
+    } catch (Exception e) {
+
+      org.yamcs.yarch.protobuf.Db.Event ev =
+          Event.newBuilder()
+              .setGenerationTime(YamcsServer.getTimeService(yamcsInstance).getMissionTime())
+              .setGenerationTime(YamcsServer.getTimeService(yamcsInstance).getMissionTime())
+              .setSource(this.linkName)
+              .setType(this.linkName)
+              .setMessage(String.format("Resubscribing failed. Exception info" + e.toString()))
+              .setSeverity(EventSeverity.ERROR)
+              .build();
+      eventProducer.sendEvent(ev);
+
+      internalLogger.warn(e.toString());
+      return;
+    }
+
+    reconnectCount++;
+    subStrikeCount.set(0);
+  }
+
+  private void scheduleStrikeCountThread() {
     scheduler.scheduleAtFixedRate(
         () -> {
+          if (currentOPCUAStatus != OPCUAINITStatus.OPCUA_INIT_OK) {
+            //            	We could be in the middle of a reconnect...
+            return;
+          }
           if (realtimeCount.get() > lastRealtimeCount.get()) {
             subStrikeCount.set(0);
           } else {
@@ -590,83 +703,88 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
                     .build();
             eventProducer.sendEvent(ev);
 
-            if (currentOPCUAStatus == OPCUAINITStatus.OPCUA_INIT_DATA_SUBSCRIPTION) {
-              //            	We could be in the middle of a reconnect...
-              return;
-            }
-
-            linkStatus = Status.UNAVAIL;
+            // linkStatus = Status.UNAVAIL;
 
             //            Reconnect to realtime data
-            try {
-              ev =
-                  Event.newBuilder()
-                      .setGenerationTime(YamcsServer.getTimeService(yamcsInstance).getMissionTime())
-                      .setGenerationTime(YamcsServer.getTimeService(yamcsInstance).getMissionTime())
-                      .setSource(this.linkName)
-                      .setType(this.linkName)
-                      .setMessage(String.format("Disconnecting"))
-                      .setSeverity(EventSeverity.ERROR)
-                      .build();
-              eventProducer.sendEvent(ev);
-              client.disconnect().get();
-            } catch (InterruptedException | ExecutionException e) {
-              internalLogger.warn(e.toString());
-            }
+            // try {
+            //   ev =
+            //       Event.newBuilder()
+            //
+            // .setGenerationTime(YamcsServer.getTimeService(yamcsInstance).getMissionTime())
+            //
+            // .setGenerationTime(YamcsServer.getTimeService(yamcsInstance).getMissionTime())
+            //           .setSource(this.linkName)
+            //           .setType(this.linkName)
+            //           .setMessage(String.format("Disconnecting"))
+            //           .setSeverity(EventSeverity.ERROR)
+            //           .build();
+            //   eventProducer.sendEvent(ev);
+            //   client.disconnect().get();
+            // } catch (InterruptedException | ExecutionException e) {
+            //   internalLogger.warn(e.toString());
+            // }
 
-            try {
-              opcuaClientConnect();
-            } catch (Exception e) {
-              internalLogger.warn(e.toString());
-              linkStatus = Status.FAILED;
+            // try {
+            //   opcuaClientConnect();
+            // } catch (Exception e) {
+            //   internalLogger.warn(e.toString());
+            //   linkStatus = Status.FAILED;
 
-              ev =
-                  Event.newBuilder()
-                      .setGenerationTime(YamcsServer.getTimeService(yamcsInstance).getMissionTime())
-                      .setGenerationTime(YamcsServer.getTimeService(yamcsInstance).getMissionTime())
-                      .setSource(this.linkName)
-                      .setType(this.linkName)
-                      .setMessage(String.format("Reconnect failed."))
-                      .setSeverity(EventSeverity.ERROR)
-                      .build();
-              eventProducer.sendEvent(ev);
-              notifyFailed(e);
-              return;
-            }
+            //   ev =
+            //       Event.newBuilder()
+            //
+            // .setGenerationTime(YamcsServer.getTimeService(yamcsInstance).getMissionTime())
+            //
+            // .setGenerationTime(YamcsServer.getTimeService(yamcsInstance).getMissionTime())
+            //           .setSource(this.linkName)
+            //           .setType(this.linkName)
+            //           .setMessage(String.format("Reconnect failed."))
+            //           .setSeverity(EventSeverity.ERROR)
+            //           .build();
+            //   eventProducer.sendEvent(ev);
+            //   notifyFailed(e);
+            //   return;
+            // }
 
-            try {
-              ev =
-                  Event.newBuilder()
-                      .setGenerationTime(YamcsServer.getTimeService(yamcsInstance).getMissionTime())
-                      .setGenerationTime(YamcsServer.getTimeService(yamcsInstance).getMissionTime())
-                      .setSource(this.linkName)
-                      .setType(this.linkName)
-                      .setMessage(String.format("Resubscribing to events and realtime values."))
-                      .setSeverity(EventSeverity.INFO)
-                      .build();
-              eventProducer.sendEvent(ev);
-              subscribeToEvents(client);
-              createOPCUASubscriptions();
-              linkStatus = Status.OK;
-            } catch (Exception e) {
+            // try {
+            //   ev =
+            //       Event.newBuilder()
+            //
+            // .setGenerationTime(YamcsServer.getTimeService(yamcsInstance).getMissionTime())
+            //
+            // .setGenerationTime(YamcsServer.getTimeService(yamcsInstance).getMissionTime())
+            //           .setSource(this.linkName)
+            //           .setType(this.linkName)
+            //           .setMessage(String.format("Resubscribing to events and realtime values."))
+            //           .setSeverity(EventSeverity.INFO)
+            //           .build();
+            //   eventProducer.sendEvent(ev);
+            //   subscribeToEvents(client);
+            //   createOPCUASubscriptions();
+            //   linkStatus = Status.OK;
+            // } catch (Exception e) {
 
-              ev =
-                  Event.newBuilder()
-                      .setGenerationTime(YamcsServer.getTimeService(yamcsInstance).getMissionTime())
-                      .setGenerationTime(YamcsServer.getTimeService(yamcsInstance).getMissionTime())
-                      .setSource(this.linkName)
-                      .setType(this.linkName)
-                      .setMessage(
-                          String.format("Resubscribing failed. Exception info" + e.toString()))
-                      .setSeverity(EventSeverity.ERROR)
-                      .build();
-              eventProducer.sendEvent(ev);
+            //   ev =
+            //       Event.newBuilder()
+            //
+            // .setGenerationTime(YamcsServer.getTimeService(yamcsInstance).getMissionTime())
+            //
+            // .setGenerationTime(YamcsServer.getTimeService(yamcsInstance).getMissionTime())
+            //           .setSource(this.linkName)
+            //           .setType(this.linkName)
+            //           .setMessage(
+            //               String.format("Resubscribing failed. Exception info" + e.toString()))
+            //           .setSeverity(EventSeverity.ERROR)
+            //           .build();
+            //   eventProducer.sendEvent(ev);
 
-              internalLogger.warn(e.toString());
-              return;
-            }
+            //   internalLogger.warn(e.toString());
+            //   return;
+            // }
 
-            reconnectCount++;
+            // reconnectCount++;
+
+            // subStrikeCount.set(0);
           }
 
           lastRealtimeCount.set(realtimeCount.get());
@@ -1286,8 +1404,10 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
     if (getAction(startAction.getId()) == null) {
       addAction(startAction);
+      addAction(reconnectAction);
     }
     startAction.setEnabled(true);
+    reconnectAction.setEnabled(true);
   }
 
   /**
