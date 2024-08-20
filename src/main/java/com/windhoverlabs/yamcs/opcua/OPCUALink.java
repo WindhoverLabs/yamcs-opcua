@@ -225,6 +225,10 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
   private boolean enabledAtStartup = false;
 
+  private boolean useGroundTimeForQueryAllNodes = false;
+
+  private boolean useGroundTimeForRealtimeData = false;
+
   /* Configuration Parameters */
 
   private String discoverURL;
@@ -329,6 +333,14 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
     spec.addOption("enabledAtStartup", OptionType.BOOLEAN).withRequired(true);
 
+    spec.addOption("useGroundTimeForQueryAllNodes", OptionType.BOOLEAN)
+        .withRequired(false)
+        .withDefault(false);
+
+    spec.addOption("useGroundTimeForRealtimeData", OptionType.BOOLEAN)
+        .withRequired(false)
+        .withDefault(false);
+
     Spec rootNodeIDSpec = new Spec();
 
     rootNodeIDSpec.addOption("namespaceIndex", OptionType.INTEGER).withRequired(true);
@@ -381,6 +393,10 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     subStrikeCountCheckTimeoutSecs = config.getInt("subStrikeCountCheckTimeoutSecs");
 
     enabledAtStartup = config.getBoolean("enabledAtStartup");
+
+    useGroundTimeForRealtimeData = config.getBoolean("useGroundTimeForRealtimeData", false);
+
+    useGroundTimeForQueryAllNodes = config.getBoolean("useGroundTimeForQueryAllNodes", false);
 
     if (!enabledAtStartup) {
       linkStatus = Status.DISABLED;
@@ -581,7 +597,9 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
   @Override
   protected void doStop() {
     try {
-      client.disconnect().get();
+      if (client != null) {
+        client.disconnect().get();
+      }
     } catch (InterruptedException | ExecutionException e) {
       internalLogger.warn(e.toString());
     }
@@ -615,7 +633,10 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
               .setSeverity(EventSeverity.ERROR)
               .build();
       eventProducer.sendEvent(ev);
-      client.disconnect().get();
+
+      if (client != null) {
+        client.disconnect().get();
+      }
     } catch (InterruptedException | ExecutionException e) {
       internalLogger.warn(e.toString());
     }
@@ -848,17 +869,14 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
                 continue;
               }
 
-              gentime =
-                  node.readAttribute(attr)
-                      .getSourceTime()
-                      .getJavaInstant()
-                      .plus(37, ChronoUnit.SECONDS)
-                      .toEpochMilli();
-              //              cols.add(gentime);
-              //              cols.add(parametersNamespace);
-              //              cols.add(0);
-              //              long rectime = timeService.getMissionTime();
-              //              cols.add(rectime);
+              if (!useGroundTimeForQueryAllNodes) {
+                gentime =
+                    node.readAttribute(attr)
+                        .getSourceTime()
+                        .getJavaInstant()
+                        .plus(37, ChronoUnit.SECONDS)
+                        .toEpochMilli();
+              }
 
               switch (p.getParameterType().getValueType()) {
                 case BOOLEAN:
@@ -1489,6 +1507,10 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
                     .getJavaInstant()
                     .plus(37, ChronoUnit.SECONDS)
                     .toEpochMilli();
+
+            if (useGroundTimeForRealtimeData) {
+              gentime = timeService.getMissionTime();
+            }
             cols.add(gentime);
             cols.add(parametersNamespace);
             cols.add(0);
