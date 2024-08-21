@@ -1243,7 +1243,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
         } else {
           p = mdb.getParameter(p.getQualifiedName());
         }
-        nodeIDToParamsMap.put(new NodeIDAttrPair(node.getNodeId(), attr), (VariableParam) p);
+        nodeIDToParamsMap.put(new NodeIDAttrPair(node.getNodeId(), attr), p);
       }
     }
   }
