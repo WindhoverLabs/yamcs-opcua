@@ -202,8 +202,8 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
    *     org.yamcs.parameter.ParameterRequestManager.param2RequestMap since the object hashes do not
    *     match (since VariableParam does not override its hash function).
    */
-  private ConcurrentHashMap<NodeIDAttrPair, VariableParam> nodeIDToParamsMap =
-      new ConcurrentHashMap<NodeIDAttrPair, VariableParam>();
+  private ConcurrentHashMap<NodeIDAttrPair, Parameter> nodeIDToParamsMap =
+      new ConcurrentHashMap<NodeIDAttrPair, Parameter>();
 
   private OpcUaClient client;
 
@@ -852,7 +852,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
         switch (NodeClass.from((int) nodeClass.getValue().getValue())) {
           case Variable:
             for (AttributeId attr : AttributeId.VARIABLE_ATTRIBUTES) {
-              VariableParam p = nodeIDToParamsMap.get(new NodeIDAttrPair(nId, attr));
+              Parameter p = nodeIDToParamsMap.get(new NodeIDAttrPair(nId, attr));
 
               if (p.getParameterType() == null) {
                 internalLogger.warn(
@@ -1240,6 +1240,8 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
         if (mdb.getParameter(p.getQualifiedName()) == null) {
           log.debug("Adding OPCUA object as parameter to mdb:{}", p.getQualifiedName());
           mdb.addParameter(p, true);
+        } else {
+          p = mdb.getParameter(p.getQualifiedName());
         }
         nodeIDToParamsMap.put(new NodeIDAttrPair(node.getNodeId(), attr), (VariableParam) p);
       }
