@@ -119,6 +119,7 @@ import org.yamcs.tctm.AbstractLink;
 import org.yamcs.tctm.Link;
 import org.yamcs.tctm.LinkAction;
 import org.yamcs.utils.ValueUtility;
+import org.yamcs.xtce.AlarmLevels;
 import org.yamcs.xtce.BooleanParameterType;
 import org.yamcs.xtce.EnumeratedParameterType;
 import org.yamcs.xtce.FloatParameterType;
@@ -129,6 +130,7 @@ import org.yamcs.xtce.ParameterType;
 import org.yamcs.xtce.SpaceSystem;
 import org.yamcs.xtce.StringParameterType;
 import org.yamcs.xtce.XtceDb;
+import org.yamcs.xtce.util.DoubleRange;
 import org.yamcs.yarch.DataType;
 import org.yamcs.yarch.Stream;
 import org.yamcs.yarch.Tuple;
@@ -724,6 +726,16 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
                     .setSeverity(EventSeverity.ERROR)
                     .build();
             eventProducer.sendEvent(ev);
+
+            //            mdb.getSpaceSystem("").addA
+
+            new IntegerParameterType.Builder()
+                .setSizeInBits(64)
+                .setSigned(false)
+                .addAlarmRange(
+                    context, new DoubleRange(0, Double.POSITIVE_INFINITY), AlarmLevels.CRITICAL);
+
+            subStrikeCountParam.getParameterType().hasAlarm();
 
             // linkStatus = Status.UNAVAIL;
 
