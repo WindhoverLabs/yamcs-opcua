@@ -40,6 +40,7 @@ import static org.yamcs.xtce.NameDescription.qualifiedName;
 import com.google.gson.JsonObject;
 import java.io.BufferedWriter;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
@@ -104,6 +105,7 @@ import org.yamcs.ConfigurationException;
 import org.yamcs.Spec;
 import org.yamcs.Spec.OptionType;
 import org.yamcs.StandardTupleDefinitions;
+import org.yamcs.TmPacket;
 import org.yamcs.ValidationException;
 import org.yamcs.YConfiguration;
 import org.yamcs.YamcsServer;
@@ -115,7 +117,7 @@ import org.yamcs.parameter.SystemParametersService;
 import org.yamcs.protobuf.Event.EventSeverity;
 import org.yamcs.protobuf.Yamcs.NamedObjectId;
 import org.yamcs.protobuf.Yamcs.Value.Type;
-import org.yamcs.tctm.AbstractLink;
+import org.yamcs.tctm.AbstractTmDataLink;
 import org.yamcs.tctm.Link;
 import org.yamcs.tctm.LinkAction;
 import org.yamcs.utils.ValueUtility;
@@ -125,7 +127,10 @@ import org.yamcs.xtce.FloatParameterType;
 import org.yamcs.xtce.IntegerParameterType;
 import org.yamcs.xtce.NameDescription;
 import org.yamcs.xtce.Parameter;
+import org.yamcs.xtce.ParameterEntry;
 import org.yamcs.xtce.ParameterType;
+import org.yamcs.xtce.SequenceContainer;
+import org.yamcs.xtce.SequenceEntry.ReferenceLocationType;
 import org.yamcs.xtce.SpaceSystem;
 import org.yamcs.xtce.StringParameterType;
 import org.yamcs.xtce.XtceDb;
@@ -143,7 +148,7 @@ import org.yamcs.yarch.protobuf.Db.Event;
  *
  * @author Lorenzo Gomez
  */
-public class OPCUALink extends AbstractLink implements Runnable, SystemParametersProducer {
+public class OPCUALink extends AbstractTmDataLink implements Runnable, SystemParametersProducer {
 
   class NodeIDAttrPair {
     NodeId nodeID;
@@ -310,11 +315,13 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
   @Override
   public Spec getSpec() {
-    Spec spec = new Spec();
+
+    var spec = super.getDefaultSpec();
+    //    Spec spec = new Spec();
 
     /* Define our configuration parameters. */
-    spec.addOption("name", OptionType.STRING).withRequired(true);
-    spec.addOption("class", OptionType.STRING).withRequired(true);
+    //    spec.addOption("name", OptionType.STRING).withRequired(true);
+    //    spec.addOption("class", OptionType.STRING).withRequired(true);
     spec.addOption("opcuaStream", OptionType.STRING).withRequired(true);
     spec.addOption("endpointUrl", OptionType.STRING).withRequired(true);
     spec.addOption("discoveryUrl", OptionType.STRING).withRequired(true);
@@ -331,7 +338,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
     spec.addOption("queryAllNodesAtStartup", OptionType.BOOLEAN).withRequired(false);
 
-    spec.addOption("enabledAtStartup", OptionType.BOOLEAN).withRequired(true);
+    //    spec.addOption("enabledAtStartup", OptionType.BOOLEAN).withRequired(true);
 
     spec.addOption("useGroundTimeForQueryAllNodes", OptionType.BOOLEAN)
         .withRequired(false)
@@ -1244,6 +1251,18 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
         } else {
           p = mdb.getParameter(p.getQualifiedName());
         }
+
+        SequenceContainer container = new SequenceContainer(p.getName() + "Container");
+
+        container.setQualifiedName(p.getSubsystemName() + "/" + container.getName());
+        container.addEntry(new ParameterEntry(0, ReferenceLocationType.CONTAINER_START, p));
+        container.useAsArchivePartition(true);
+        container.setAutoPartition(true);
+
+        System.out.println("fqn:" + container.getQualifiedName());
+
+        mdb.getSpaceSystem(p.getSubsystemName()).addSequenceContainer(container);
+        ;
         nodeIDToParamsMap.put(new NodeIDAttrPair(node.getNodeId(), attr), p);
       }
     }
@@ -1593,6 +1612,14 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
                         nodeIDToParamsMap.get(nodeAttrKey).getQualifiedName(),
                         DataType.PARAMETER_VALUE);
                     cols.add(getPV(nodeIDToParamsMap.get(nodeAttrKey), gentime, value.intValue()));
+
+                    byte[] packet =
+                        ByteBuffer.allocate(12).putInt(value.intValue()).putLong(100).array();
+
+                    TmPacket tmPacket = new TmPacket(timeService.getMissionTime(), packet);
+                    tmPacket.setEarthReceptionTime(timeService.getHresMissionTime());
+
+                    processPacket(tmPacket);
                   }
                   break;
                 case SINT64:
