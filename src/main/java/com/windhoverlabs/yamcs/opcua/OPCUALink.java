@@ -533,6 +533,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     try {
       if (client != null) {
         client.disconnect().get();
+        OPCUAActiveSubs.set(0);
       }
     } catch (InterruptedException | ExecutionException e) {
       internalLogger.warn(e.toString());
@@ -546,7 +547,6 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
   @Override
   public void doEnable() {
-    internalLogger.warn("doEnable********88");
     try {
       opcuaClientConnect();
     } catch (Exception e) {
@@ -636,6 +636,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
       if (client != null) {
         client.disconnect().get();
+        OPCUAActiveSubs.set(0);
       }
     } catch (InterruptedException | ExecutionException e) {
       internalLogger.warn(e.toString());
@@ -1952,8 +1953,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
         sysParamService.createSystemParameter(
             linkName + "/SubStrikeCountThreshold",
             Type.UINT64,
-            "Configured strike count threshold. If current strike count exceeds this value, users will be notified via events"
-                + " and a reconnect will be attempted.");
+            "Configured strike count threshold. If current strike count exceeds this value, users will be notified via events.");
 
     subStrikeCountParam =
         sysParamService.createSystemParameter(
