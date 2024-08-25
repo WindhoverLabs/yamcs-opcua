@@ -108,6 +108,7 @@ import org.yamcs.ValidationException;
 import org.yamcs.YConfiguration;
 import org.yamcs.YamcsServer;
 import org.yamcs.http.NotFoundException;
+import org.yamcs.mdb.Mdb;
 import org.yamcs.mdb.XtceAssembler;
 import org.yamcs.parameter.ParameterValue;
 import org.yamcs.parameter.SystemParametersProducer;
@@ -187,7 +188,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
   protected Thread thread;
   private String opcuaStreamName;
   private String parametersNamespace;
-  XtceDb mdb;
+  Mdb mdb;
   Stream opcuaStream;
   private static TupleDefinition gftdef = StandardTupleDefinitions.PARAMETER.copy();
   private ManagedSubscription opcuaSubscription;
@@ -381,7 +382,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     this.opcuaStreamName = config.getString("opcuaStream");
     this.opcuaStream = getStream(ydb, opcuaStreamName);
     this.parametersNamespace = config.getString("parametersNamespace");
-    this.mdb = YamcsServer.getServer().getInstance(yamcsInstance).getXtceDb();
+    this.mdb = YamcsServer.getServer().getInstance(yamcsInstance).getMdb();
 
     readOPCUAConfig(config);
     readNodePathsConfig(config);
@@ -491,7 +492,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
   private void exportXTCE() throws IOException {
     var spaceSystem = verifySpaceSystem(mdb, parametersNamespace);
-    var xtce = new XtceAssembler().toXtce(mdb, spaceSystem.getQualifiedName(), fqn -> true);
+    var xtce = new XtceAssembler().toXtce((Mdb) mdb, spaceSystem.getQualifiedName(), fqn -> true);
     BufferedWriter writer = null;
 
     if (outputFile != null) {
@@ -1053,7 +1054,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
     ptype = typeb.build();
     ((NameDescription) ptype).setQualifiedName(fqn);
 
-    return mdb.addSystemParameterType(ptype);
+    return ((Mdb) mdb).addSystemParameterType(ptype);
   }
 
   public static ParameterType getBasicType(XtceDb mdb, Type type) {
@@ -1240,7 +1241,12 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
 
         if (mdb.getParameter(p.getQualifiedName()) == null) {
           log.debug("Adding OPCUA object as parameter to mdb:{}", p.getQualifiedName());
-          mdb.addParameter(p, true);
+          try {
+            mdb.addParameter(p, true, false);
+          } catch (IOException e) {
+            // TODO Auto-generated catch block
+            internalLogger.info(e.toString());
+          }
         } else {
           p = mdb.getParameter(p.getQualifiedName());
         }
@@ -1972,9 +1978,8 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
             "Successful reconnect count, after sub strike count failures.");
   }
 
-  @Override
-  public List<ParameterValue> getSystemParameters() {
-    long time = getCurrentTime();
+  public List<ParameterValue> getSystemParameters(long gentime) {
+    long time = gentime;
     ArrayList<ParameterValue> list = new ArrayList<>();
 
     list.add(

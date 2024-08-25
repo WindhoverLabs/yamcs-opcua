@@ -2,10 +2,10 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>com.windhoverlabs</groupId>
   <artifactId>yamcs-opcua</artifactId>
-  <version>0.3.4-SNAPSHOT</version>
+  <version>1.0.0</version>
   
   	<properties>
-		<yamcsVersion>5.8.7</yamcsVersion>
+		<yamcsVersion>5.9.8</yamcsVersion>
 		<maven.compiler.source>11</maven.compiler.source>
 		<maven.compiler.target>11</maven.compiler.target>
 	</properties>
