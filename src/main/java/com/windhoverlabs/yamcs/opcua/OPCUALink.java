@@ -1244,16 +1244,17 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
           log.debug("Adding OPCUA object as parameter to mdb:{}", p.getQualifiedName());
           try {
             mdb.addParameter(p, true, false);
-          } catch (IOException e) {
+          } catch (Exception e) {
             // TODO Auto-generated catch block
             internalLogger.info(e.toString());
+            internalLogger.info("Failed to add PV:" + p.getQualifiedName());
             org.yamcs.yarch.protobuf.Db.Event ev =
                 Event.newBuilder()
                     .setGenerationTime(YamcsServer.getTimeService(yamcsInstance).getMissionTime())
                     .setGenerationTime(YamcsServer.getTimeService(yamcsInstance).getMissionTime())
                     .setSource(this.linkName)
                     .setType(this.linkName)
-                    .setMessage("Failed to add PV:" + mdb.getParameter(p.getQualifiedName()))
+                    .setMessage("Failed to add PV:" + p.getQualifiedName())
                     .setSeverity(EventSeverity.ERROR)
                     .build();
             eventProducer.sendEvent(ev);
