@@ -1213,8 +1213,9 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
    *
    * @param client
    * @param node
+   * @throws IOException
    */
-  private void addOPCUAPV(OpcUaClient client, UaNode node) {
+  private void addOPCUAPV(OpcUaClient client, UaNode node) throws IOException {
 
     if (node.getBrowseName()
         .getName()
@@ -1246,6 +1247,17 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
           } catch (IOException e) {
             // TODO Auto-generated catch block
             internalLogger.info(e.toString());
+            org.yamcs.yarch.protobuf.Db.Event ev =
+                Event.newBuilder()
+                    .setGenerationTime(YamcsServer.getTimeService(yamcsInstance).getMissionTime())
+                    .setGenerationTime(YamcsServer.getTimeService(yamcsInstance).getMissionTime())
+                    .setSource(this.linkName)
+                    .setType(this.linkName)
+                    .setMessage("Failed to add PV:" + mdb.getParameter(p.getQualifiedName()))
+                    .setSeverity(EventSeverity.ERROR)
+                    .build();
+            eventProducer.sendEvent(ev);
+            throw e;
           }
         } else {
           p = mdb.getParameter(p.getQualifiedName());
@@ -1366,8 +1378,19 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
                   result.getTargets()[0].getTargetId().toNodeId(client.getNamespaceTable()).get());
 
       addOPCUAPV(client, node);
-    } catch (UaException e) {
+    } catch (Exception e) {
+      org.yamcs.yarch.protobuf.Db.Event ev =
+          Event.newBuilder()
+              .setGenerationTime(YamcsServer.getTimeService(yamcsInstance).getMissionTime())
+              .setGenerationTime(YamcsServer.getTimeService(yamcsInstance).getMissionTime())
+              .setSource(this.linkName)
+              .setType(this.linkName)
+              .setMessage("Failed to add PV:" + nodePath + ". Error code info:" + statusCode)
+              .setSeverity(EventSeverity.ERROR)
+              .build();
+      eventProducer.sendEvent(ev);
       internalLogger.warn(e.toString());
+      throw e;
     }
   }
 
