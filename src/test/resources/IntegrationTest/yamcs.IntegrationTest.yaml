@@ -40,9 +40,10 @@ dataLinks:
     xtceOutputFile: opcua_xtce.xml
     endpointUrl: "opc.tcp://localhost:12689/milo"
     discoveryUrl: "opc.tcp://localhost:12689/milo/discovery"
-    parametersNamespace: "/instruments/tvac"
+    parametersNamespace: "/yamcs/instruments/tvac"
     queryAllNodesAtStartup: false # defaults to false
     publishInterval: 100
+    enabledAtStartup: true
     
     # i 	Numeric (UInteger)
     # s 	String (String)

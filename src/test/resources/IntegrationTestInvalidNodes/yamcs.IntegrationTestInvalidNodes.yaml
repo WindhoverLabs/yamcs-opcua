@@ -43,6 +43,7 @@ dataLinks:
     parametersNamespace: "/instruments/tvac"
     queryAllNodesAtStartup: false # defaults to false
     publishInterval: 100
+    enabledAtStartup: true
     
     # i 	Numeric (UInteger)
     # s 	String (String)

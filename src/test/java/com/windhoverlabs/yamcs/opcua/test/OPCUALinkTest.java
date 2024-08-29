@@ -13,6 +13,7 @@ import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.yamcs.YamcsServer;
+import org.yamcs.actions.ActionResult;
 import org.yamcs.client.processor.ProcessorClient;
 import org.yamcs.protobuf.Pvalue.AcquisitionStatus;
 import org.yamcs.protobuf.Pvalue.ParameterValue;
@@ -123,7 +124,7 @@ public class OPCUALinkTest extends AbstractOPCUAIntegrationTest {
 
     var refParam =
         mdbClient
-            .getParameter("/instruments/tvac/ns=2-s=HelloWorld/Dynamic/Boolean/Boolean/Value")
+            .getParameter("/yamcs/instruments/tvac/ns=2-s=HelloWorld/Dynamic/Boolean/Boolean/Value")
             .get(200, TimeUnit.MILLISECONDS);
     assertNotNull(refParam);
 
@@ -131,7 +132,19 @@ public class OPCUALinkTest extends AbstractOPCUAIntegrationTest {
 
     assertNotNull(action);
 
-    action.execute(l, new JsonObject());
+    ActionResult aR = new ActionResult();
+
+    action.execute(l, new JsonObject(), aR);
+
+    aR.future().get(1, TimeUnit.SECONDS);
+
+    action = l.getAction("reconnect");
+
+    assertNotNull(action);
+
+    action.execute(l, new JsonObject(), aR);
+
+    aR.future().get(1, TimeUnit.SECONDS);
 
     /** FIXME:Don't really like making timing assumptions when it comes to futures.. */
     Thread.sleep(10000);
