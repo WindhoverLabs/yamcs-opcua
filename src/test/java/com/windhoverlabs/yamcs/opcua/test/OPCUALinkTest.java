@@ -124,7 +124,7 @@ public class OPCUALinkTest extends AbstractOPCUAIntegrationTest {
 
     var refParam =
         mdbClient
-            .getParameter("/yamcs/instruments/tvac/ns=2-s=HelloWorld/Dynamic/Boolean/Boolean/Value")
+            .getParameter("/instruments/tvac/ns=2-s=HelloWorld/Dynamic/Boolean/Boolean/Value")
             .get(200, TimeUnit.MILLISECONDS);
     assertNotNull(refParam);
 

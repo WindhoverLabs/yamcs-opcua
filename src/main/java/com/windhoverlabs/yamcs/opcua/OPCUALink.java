@@ -1243,7 +1243,7 @@ public class OPCUALink extends AbstractLink implements Runnable, SystemParameter
         if (mdb.getParameter(p.getQualifiedName()) == null) {
           log.debug("Adding OPCUA object as parameter to mdb:{}", p.getQualifiedName());
           try {
-            mdb.addParameter(p, true, false);
+            mdb.addParameter(p, true, true);
           } catch (Exception e) {
             // TODO Auto-generated catch block
             internalLogger.info(e.toString());

@@ -40,7 +40,7 @@ dataLinks:
     xtceOutputFile: opcua_xtce.xml
     endpointUrl: "opc.tcp://localhost:12689/milo"
     discoveryUrl: "opc.tcp://localhost:12689/milo/discovery"
-    parametersNamespace: "/yamcs/instruments/tvac"
+    parametersNamespace: "/instruments/tvac"
     queryAllNodesAtStartup: false # defaults to false
     publishInterval: 100
     enabledAtStartup: true
@@ -111,6 +111,15 @@ dataLinks:
 mdb:
     - type: "xtce"
       spec: "mdb/cfs-ccsds.xml"
+          
+    
+    #Adding "writable" Due to changes in https://github.com/yamcs/yamcs/commit/9be9328690fbb305ec7cdab461f3fe0e1c77067b 
+    - type: "xtce"
+      args:
+        file: "mdb/opcua.xml"
+      writable: true
+      
+      
 
 
 streamConfig:
